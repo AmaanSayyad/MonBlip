@@ -51,37 +51,6 @@ The live play assets are Agora AUSD (`0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a
 
 ## Sponsor flows
 
-One pass through the desk. Each sponsor appears once, in the order a trader hits it. The sections below are the same path split per sponsor.
-
-```mermaid
-sequenceDiagram
-  actor Trader
-  participant App as MonBlip
-  participant Mera
-  participant MM as MetaMask
-  participant Aurora
-  participant Monad
-  participant Agora as Agora AUSD
-  participant Envio
-  participant CRE as Chainlink CRE
-  participant Dynamic
-  participant Perpl
-  participant Nansen
-
-  Trader->>Mera: Passkey account
-  Trader->>MM: Or a Monad wallet
-  Aurora->>Monad: Deliver MON
-  Trader->>Agora: Deposit AUSD to the treasury
-  Trader->>Monad: Or deposit MON
-  Monad-->>App: Transfer verified
-  Envio-->>App: Funding totals
-  Trader->>App: Stake 5s to 1m
-  CRE->>App: Close the round
-  App->>Dynamic: Sign the house hedge
-  Dynamic->>Perpl: Offset MON perpetual
-  Nansen-->>App: Wallet stance
-```
-
 ### Monad
 
 Monad mainnet, chain ID 143, is where the deposit, the Blitz entry, and the withdrawal are broadcast. The round itself does not send a transaction.
