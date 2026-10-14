@@ -24,7 +24,7 @@ type Asset = 'MON' | 'AUSD';
 
 const MON_GAS_RESERVE = 0.02;
 const GAS_TOP_UP = 0.05;
-const TOP_UP_PRESETS: Record<Asset, number[]> = { MON: [1, 5, 10], AUSD: [10, 25, 50] };
+const TOP_UP_PRESETS: Record<Asset, number[]> = { MON: [1, 5, 10], AUSD: [1, 10, 25, 50] };
 
 async function readTreasury(): Promise<string> {
   const response = await fetch('/api/treasury?network=MONAD');
