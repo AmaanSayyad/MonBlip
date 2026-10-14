@@ -1,0 +1,23 @@
+# Default owner for all files
+* @AmaanSayyad
+
+# Security / deployment critical
+.github/workflows/* @AmaanSayyad
+vercel.json @AmaanSayyad
+
+# Backend API routes (fund movement + auth logic)
+app/api/** @AmaanSayyad
+
+# Chain backends and treasury movement code
+lib/**/backend-client.ts @AmaanSayyad
+lib/fees/** @AmaanSayyad
+lib/wallet/** @AmaanSayyad
+lib/balance/** @AmaanSayyad
+
+# Store and provider logic that can expose hidden controls
+app/providers.tsx @AmaanSayyad
+lib/store/** @AmaanSayyad
+
+# Environment templates / docs that influence runtime config
+.env.example @AmaanSayyad
+README.md @AmaanSayyad
