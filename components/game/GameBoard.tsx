@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '@/lib/store';
 import { LiveChart } from './';
 import { CreClose } from './CreClose';
+import { HedgeDesk } from './HedgeDesk';
 import { NansenDesk } from './NansenDesk';
 import { SlipDesk } from './SlipDesk';
 import { BalanceDisplay } from '@/components/balance';
@@ -624,12 +625,7 @@ export const GameBoard: React.FC = () => {
                         <CreClose />
                         <NansenDesk address={address || null} />
                         <SlipDesk />
-                        <p className="text-[11px] leading-4 text-[#E4E4E4]">
-                          <span className="mr-2 font-medium text-[#B781FE]">Hedge</span>
-                          {currencySymbol === 'AUSD'
-                            ? 'Dynamic signs the Perpl offset when the book is one-sided.'
-                            : 'This asset settles from the house balance.'}
-                        </p>
+                        <HedgeDesk currency={currencySymbol} />
                         <p className="text-[11px] leading-4 text-[#E4E4E4]">
                           <span className="mr-2 font-medium text-[#B781FE]">Agent</span>
                           mm monblip fund. The passkey stays the account.

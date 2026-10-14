@@ -39,21 +39,23 @@ export async function POST(request: NextRequest) {
   }
   const marketId = 10;
 
+  let signed: Awaited<ReturnType<typeof signDynamicHedge>> | null = null;
   try {
-    const signed = await signDynamicHedge(`MonBlip Perpl hedge\n${JSON.stringify({ direction, notional, marketId })}`);
+    signed = await signDynamicHedge(`MonBlip Perpl hedge\n${JSON.stringify({ direction, notional, marketId })}`);
     const order = await submitHouseOrder({
       direction,
       notional,
       marketId,
       authorization: signed.signature,
     });
-    return NextResponse.json(order);
+    return NextResponse.json({ ...order, dynamic: signed });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The house hedge could not be sent';
     const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : '';
     const missing = message.includes('not configured');
     return NextResponse.json({
       submitted: false,
+      dynamic: signed,
       error: cause ? `${message}: ${cause}` : message,
     }, { status: missing ? 503 : 502 });
   }

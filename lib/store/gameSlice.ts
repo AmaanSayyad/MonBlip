@@ -505,13 +505,14 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
             currency,
             duration: durationSeconds,
             asset: selectedAsset,
-          });
+          }).catch(() => null);
           if (currency !== 'AUSD') return;
-          void fetch('/api/monad/perpl', {
+          const hedge = await fetch('/api/monad/perpl', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ direction, notional: betAmount, sealed }),
-          });
+          }).then((response) => response.json()).catch(() => null);
+          if (hedge) window.dispatchEvent(new CustomEvent('monblip:hedge', { detail: hedge }));
         });
       }
 
