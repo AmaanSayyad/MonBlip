@@ -9,6 +9,7 @@ import { useOverflowStore } from '@/lib/store';
 import { useToast } from '@/lib/hooks/useToast';
 
 const publicClient = createPublicClient({ chain: monad, transport: http('https://rpc.monad.xyz') });
+// Smart-account recipients (EIP-7702 delegated) need more than 21,000 to receive MON.
 const MON_GAS = 21_000n;
 const AUSD_GAS = 80_000n;
 
@@ -49,11 +50,13 @@ export function SendOut() {
       const fees = await publicClient.estimateFeesPerGas();
       const maxFeePerGas = fees.maxFeePerGas * 2n;
       const maxPriorityFeePerGas = fees.maxPriorityFeePerGas;
+      const estimate = await publicClient.estimateGas({ account: from, to: recipient, value: 1n });
+      const gas = estimate > MON_GAS ? (estimate * 12n) / 10n : MON_GAS;
       const mon = await publicClient.getBalance({ address: from });
-      const value = mon - maxFeePerGas * MON_GAS;
+      const value = mon - maxFeePerGas * gas;
       if (value > 0n) {
         setBusy(`Sending ${Number(formatEther(value)).toFixed(4)} MON…`);
-        const hash = await wallet.sendTransaction({ to: recipient, value, gas: MON_GAS, maxFeePerGas, maxPriorityFeePerGas });
+        const hash = await wallet.sendTransaction({ to: recipient, value, gas, maxFeePerGas, maxPriorityFeePerGas });
         await publicClient.waitForTransactionReceipt({ hash });
         done.push({ label: `${Number(formatEther(value)).toFixed(4)} MON`, hash });
       }
