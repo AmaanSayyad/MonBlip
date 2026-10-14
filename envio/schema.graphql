@@ -1,0 +1,20 @@
+type TraderFunding {
+  id: ID!
+  trader: String!
+  deposits: Int!
+  withdrawals: Int!
+  ausdIn: String!
+  ausdOut: String!
+  monIn: String!
+  monOut: String!
+}
+
+type FundingFlow {
+  id: ID!
+  trader: String!
+  kind: String!
+  asset: String!
+  amount: String!
+  tx: String!
+  block: Int!
+}

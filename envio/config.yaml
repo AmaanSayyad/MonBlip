@@ -1,0 +1,14 @@
+name: monblip-funding
+description: AUSD and MON moving between a trader and the MonBlip house on Monad. The app reads this through HyperSync in lib/monad/hypersyncFunding.ts and shows the totals on the profile.
+networks:
+  - id: 143
+    rpc: https://rpc.monad.xyz
+    start_block: 0
+    contracts:
+      - name: Ausd
+        address: "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a"
+        events:
+          - event: Transfer(address indexed from, address indexed to, uint256 value)
+contracts:
+  - name: Ausd
+    abi: erc20
