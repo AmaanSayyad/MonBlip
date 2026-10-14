@@ -10,6 +10,7 @@ import { ReceiptDrawer, type ReceiptData } from './ReceiptDrawer';
 import { useToast } from '@/lib/hooks/useToast';
 import { OPEN_DEPOSIT_EVENT, OPEN_WITHDRAW_EVENT, consumeDepositRequest, consumeWithdrawRequest } from '@/lib/ui/depositPrompt';
 import { TokenLogo } from '@/components/ui/TokenLogo';
+import { SendOut } from './SendOut';
 
 /**
  * BalanceDisplay Component
@@ -262,6 +263,7 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ wallet }) => {
               {network === 'MONAD' ? <TokenLogo token={currentSymbol === 'MON' ? 'MON' : 'AUSD'} size={16} /> : null}
               {wallet?.loading ? '…' : walletFormatted} <span className="text-xs text-[#B781FE]">{currentSymbol}</span>
             </p>
+            {network === 'MONAD' && walletKind === 'Passkey wallet' ? <SendOut /> : null}
             <span
               className={`absolute -bottom-3 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${
                 walletWaiting ? 'border-[#7005FC]/60 bg-[#1D1030] text-[#DDD7FE]' : 'border-[#2a2a2a] bg-[#141414] text-white/45'
