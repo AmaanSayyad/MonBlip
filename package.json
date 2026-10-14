@@ -2,7 +2,7 @@
   "name": "MonBlip",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "_resolutions_note": "Resolutions ensure consistent cryptographic primitives for security - @noble/hashes and @noble/curves are pinned for security advisory compliance. @pythnetwork/hermes-client is pinned to 2.0.0 because 2.1.0+ declares Node >=22.14. starknet is pinned to 6.24.0 because 7.x declares Node >=22. Both pins keep yarn install working on Node 20 (Vercel default / many CI images).",
   "resolutions": {
     "@noble/hashes": "^1.8.0",

@@ -26,7 +26,11 @@ The round itself does not send a transaction. Monad is fast enough that the fund
 Logo: `public/brand/monblip-mark.png`
 
 
-Copyright (c) 2026 Amaan Jilani Sayyad. All rights reserved. See `LICENSE`. The source is proprietary.
+Copyright (c) 2026 Amaan Jilani Sayyad. The source is released under the MIT License. See `LICENSE`.
+
+## AI tools
+
+AI coding tools, including Cursor, were used to write, edit, and review this repository during the Metropolis build window. The founder directed the product, the Monad integration, and what shipped.
 
 ## Sponsors
 
@@ -45,6 +49,280 @@ Copyright (c) 2026 Amaan Jilani Sayyad. All rights reserved. See `LICENSE`. The 
 
 The live play assets are Agora AUSD (`0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a`) and native MON. Treasury `0xcbae80461bb820e4075035f765f8a46fa65a6ded`. Fee wallet `0x9B4d9039A96Bfd7320C865aaCC69F35b51f425a7`. RPC `https://rpc.monad.xyz`. Explorer https://monadvision.com.
 
+## Sponsor flows
+
+### Monad
+
+Monad mainnet, chain ID 143, is where the deposit, the Blitz entry, and the withdrawal are broadcast. The round itself does not send a transaction.
+
+```mermaid
+sequenceDiagram
+  actor Trader
+  participant App as MonBlip
+  participant Wallet
+  participant Monad
+  participant API as Balance API
+  participant DB as Postgres
+
+  Trader->>App: Connect on chain 143
+  App->>Wallet: Request AUSD or MON
+  Wallet->>Monad: Transfer to the treasury
+  Monad-->>App: Transaction hash
+  App->>API: POST /api/balance/deposit
+  API->>Monad: Read the transfer
+  API->>DB: Credit the house balance
+  DB-->>Trader: Balance in the same asset
+```
+
+### Mera
+
+Mera is the human account. The passkey signs the deposit, the withdrawal, and the trader's Perpl order. A second PRF salt encrypts the bet slip in the browser.
+
+```mermaid
+sequenceDiagram
+  actor Trader
+  participant App as MonBlip
+  participant Mera as Mera passkey
+  participant Monad
+  participant API as Balance API
+
+  Trader->>App: Create or restore the passkey
+  App->>Mera: WebAuthn ceremony
+  Mera-->>App: Account address
+  Trader->>App: Deposit AUSD or MON
+  App->>Mera: Sign the transfer
+  Mera->>Monad: Treasury transfer
+  App->>API: Verify the hash and credit the house balance
+  Trader->>App: Seal the round slip
+  App->>Mera: PRF on the slip salt
+  Mera-->>App: Ciphertext stored in the browser
+```
+
+**Best Mera-Powered UX on Monad.** Mera is the entire account layer. A passkey creates the wallet, restores the session, and signs the Monad deposit, the withdrawal, and the user's Perpl order. The passkey address is the house-balance key, so AUSD, MON, referrals and settled rounds belong to that account. MetaMask is the second way in. Dynamic never replaces the passkey.
+
+Demo: https://drive.google.com/drive/folders/1mhdRbF9Ee4ETzBAHmJ6SO1k9NrqHbwAF?usp=sharing
+
+**Mera: One Passkey, Many Keys.** The same passkey has a second PRF namespace for the bet slip. That salt is separate from the spending key. The slip encrypts the direction, the stake and the asset in the browser. Only the ciphertext is stored. Opening it needs the passkey again. That step is not a blockchain transaction.
+
+Demo: https://drive.google.com/drive/folders/1KFzESdcv2whLmsGc79EKSV_g7gQgzQWH?usp=sharing
+
+### MetaMask
+
+MetaMask is the browser wallet on Monad, and a second path through the Agent Wallet plugin. The plugin never replaces the passkey.
+
+```mermaid
+sequenceDiagram
+  actor Trader
+  participant MM as MetaMask
+  participant App as MonBlip
+  participant Agent as Agent Wallet
+  participant Monad
+  participant API as MonBlip API
+
+  alt Browser wallet
+    Trader->>MM: Connect on chain 143
+    MM->>Monad: Send AUSD or MON to the treasury
+    App->>API: Verify the transfer and credit the house balance
+  else Agent Wallet plugin
+    Trader->>Agent: mm monblip fund
+    Agent->>Monad: Broadcast the treasury transfer
+    Agent->>API: POST /api/monad/agent-fund with the hash
+    API-->>Agent: House balance credited
+    Trader->>Agent: mm monblip round
+    Agent->>API: POST /api/monad/agent-round with the signed round
+    API-->>Trader: Stake debited from that wallet
+  end
+```
+
+**Best Agent Wallet Plugin.** The plugin is the agent path. `mm monblip desk` reads the BTC quote with no wallet. `mm monblip fund` sends AUSD or MON to the Monad treasury through the Agent Wallet, then asks MonBlip to credit that exact transfer. `mm monblip round` stakes a capped 5s to 60s round from that house balance. The Agent Wallet signs the round text. MonBlip recovers the signer and debits that wallet. Every transfer and every stake goes through `mm`, including policy and MFA. The cap is 10 units. The desk is https://monblip.fun.
+
+Skill file: https://github.com/AmaanSayyad/MonBlip/blob/main/plugins/mm-monblip/skills/monblip/SKILL.md
+
+Demo: https://drive.google.com/drive/folders/1Prpgo-lHxlNzxHmTHhm7d94ZVu-62hrm?usp=sharing
+
+### Agora
+
+Agora AUSD is the stablecoin house balance. Native MON is the second play asset. Both credits follow the same deposit check.
+
+```mermaid
+sequenceDiagram
+  actor Trader
+  participant Wallet
+  participant AUSD as Agora AUSD
+  participant Monad
+  participant API as Balance API
+  participant Desk as Trade desk
+
+  Trader->>Wallet: Deposit AUSD
+  Wallet->>AUSD: ERC-20 transfer to the treasury
+  AUSD->>Monad: Transfer log
+  API->>Monad: Confirm recipient, amount, and asset
+  API-->>Desk: House balance in AUSD
+  Trader->>Desk: Higher, Lower, Box, or Draw
+  Desk-->>Trader: Stake debited, win credits stake times multiplier
+```
+
+**Best Mobile Trading App on Monad.** MonBlip is the mobile short-chart desk. Mera is the passkey account. Agora AUSD is the stablecoin house balance, with native MON beside it. The trader deposits, sees that balance, and bets Classic, Box, or Draw at 5s, 10s, 15s, 30s or 1m without a signature on the stake. The same passkey opens Perpl at https://monblip.fun/perpl and places the MON perpetual. The house hedge is a separate Dynamic signature. A win credits stake times the multiplier. A withdrawal returns AUSD or MON from the Monad treasury.
+
+Demo: https://drive.google.com/drive/folders/1_Jvrra2rfWiGr4rMQQy6wHk05iv1pPw_?usp=sharing
+
+### Aurora
+
+Aurora Intents quotes a deposit and delivers MON on Monad. The fund screen keeps the quote and the destination transaction.
+
+```mermaid
+sequenceDiagram
+  actor Trader
+  participant Fund as /fund
+  participant API as Aurora route
+  participant Aurora as Aurora Intents
+  participant Monad
+
+  Trader->>Fund: Request a quote
+  Fund->>API: POST /api/monad/aurora
+  API->>Aurora: Ask for a MON destination on Monad
+  Aurora-->>Fund: Deposit address and quote
+  Trader->>Aurora: Send the quoted deposit
+  Aurora->>Monad: Deliver MON
+  Monad-->>Fund: Destination transaction
+  Fund->>API: GET /api/monad/aurora?latest=1
+  API-->>Trader: Success and the destination hash
+```
+
+**Bring Any-Chain Liquidity to Monad.** https://monblip.fun/fund uses Aurora Intents. A completed quote delivered about 101.59 MON onto Monad. The destination transaction is `0xbc3655c328f912cf97385d987c172ae95c2cce46dadc9fc9a9cb3978464a220c`. That MON is a play asset on the desk. The fund screen restores the quote, the success state, and the destination transaction.
+
+Demo: https://drive.google.com/drive/folders/1RY03y8f1AtsP0YX_3Y3Q4BTI9CLzK4Le?usp=sharing
+
+### Envio
+
+Envio HyperSync is what fills the profile. It reads AUSD transfers and native MON transfers between the trader and the treasury.
+
+```mermaid
+sequenceDiagram
+  actor Trader
+  participant Profile as Profile
+  participant API as Funding route
+  participant Envio as Envio HyperSync
+  participant Monad
+
+  Trader->>Profile: Open the connected wallet
+  Profile->>API: GET /api/monad/funding
+  API->>Envio: Query monad.hypersync.xyz
+  Envio->>Monad: AUSD Transfer logs and MON traces
+  Monad-->>Envio: Matching treasury rows
+  Envio-->>API: Deposits, withdrawals, totals
+  API-->>Profile: Funding panel for that wallet
+```
+
+**Best Use of Envio.** Envio HyperSync is what fills the profile. For the connected wallet it reads AUSD transfers and native MON transfers against the Monad treasury and shows deposits, withdrawals and totals. The route is `/api/monad/funding`. The panel stays empty until that query returns. The data is the feature.
+
+Demo: https://drive.google.com/drive/folders/1E2u1OwedGb_gU-Da8Y2DzZKURsjdUX7D?usp=sharing
+
+### Chainlink CRE
+
+CRE closes the round. The workflow reads a public BTC price, reads AUSD decimals on Monad, and posts the close to the desk. A local simulation has completed. The workflow is not registered on the CRE network yet.
+
+```mermaid
+sequenceDiagram
+  actor Desk as MonBlip
+  participant CRE as Chainlink CRE
+  participant Quote as Public BTC quote
+  participant Monad
+  participant API as Settle route
+
+  Desk->>CRE: HTTP trigger with strike and direction
+  CRE->>Quote: Read the BTC price
+  Quote-->>CRE: Median price
+  CRE->>Monad: Read AUSD decimals
+  Monad-->>CRE: 6 decimals
+  CRE->>CRE: Compare the close with the strike
+  CRE->>API: POST /api/monad/settle
+  API-->>Desk: Stored close
+  Desk-->>Desk: Trade screen shows the win or the loss
+```
+
+**Best workflow with CRE.** Chainlink CRE is the orchestration layer for the close. The workflow reads a public BTC price, reads AUSD decimals on Monad mainnet, and posts the strike, the close, and the win or loss to https://monblip.fun/api/monad/settle. The trade screen shows that close. A local CRE CLI simulation completed with BTC at 83340, a strike of 100000, and a loss. The round settles in under 5 seconds against the public quote.
+
+Demo: https://drive.google.com/drive/folders/10yTXQu5zgfS-exvnEHIPNn_BE5zOj3xI?usp=sharing
+
+### Dynamic
+
+Dynamic signs the house hedge. It is not the trader login. The hedge wallet is an MPC account, and the trade key is Ed25519.
+
+```mermaid
+sequenceDiagram
+  actor Desk as MonBlip
+  participant API as Perpl route
+  participant Dynamic as Dynamic MPC wallet
+  participant Store as Trade key
+  participant Perpl
+
+  Desk->>API: House order, direction and size
+  API->>Dynamic: Open the hedge session
+  Dynamic-->>API: Hedge address
+  API->>Store: Load or create the Ed25519 trade key
+  API->>Perpl: Request the enroll payload
+  Perpl-->>API: Typed data and mac
+  API->>Dynamic: Sign the typed data on chain 143
+  Dynamic-->>API: Signature
+  API->>Perpl: Enroll the trade key with the signature
+  Perpl-->>API: API key for later orders
+```
+
+**Best Use of Dynamic.** Dynamic is the house hedge signer. The trader logs in with a Mera passkey or MetaMask. The hedge is a Dynamic MPC wallet. It signs Perpl's typed data on Monad and enrolls a trade-scoped Ed25519 key for the next orders. Perpl accepted the house order. The route is `/api/monad/perpl`. No raw hedge key sits in the app.
+
+Demo: https://drive.google.com/drive/folders/1XLaaqPHH0E0TNF-RXmCNHkNmJUwu5VTi?usp=sharing
+
+### Perpl
+
+Perpl is the offsetting MON perpetual. The trader can open an account from the Mera passkey. The house order is signed by Dynamic and sent only after Perpl accepts it.
+
+```mermaid
+sequenceDiagram
+  actor Trader
+  participant App as /perpl
+  participant Mera as Mera passkey
+  participant Perpl
+  participant House as House route
+  participant Dynamic
+
+  alt Trader order
+    Trader->>App: Open account and place a MON order
+    App->>Mera: Sign the Perpl typed data
+    Mera-->>App: Signature
+    App->>Perpl: Enroll the trade key and POST the order
+    Perpl-->>Trader: Accepted or refused
+  else House hedge
+    House->>Dynamic: Sign and enroll
+    Dynamic-->>House: Trade key
+    House->>Perpl: POST /v1/trading/orders
+    Perpl-->>House: Status code 0, submitted
+  end
+```
+
+### Nansen
+
+Nansen turns a settled wallet into a trading stance on the public board and on the trade screen.
+
+```mermaid
+sequenceDiagram
+  actor Trader
+  participant Board as Leaderboard
+  participant API as Nansen route
+  participant Nansen
+
+  Trader->>Board: Open settled rounds
+  Board->>API: GET /api/monad/nansen?address=
+  API->>Nansen: Labels for that wallet
+  Nansen-->>API: Label set
+  API->>API: Map the label to a stance
+  API-->>Board: Title and detail on the row
+  Board-->>Trader: Stance next to the result
+```
+
+**Best use of Nansen.** After a round settles, the public board calls the Nansen labels API for that wallet. The label becomes the trading stance on the leaderboard and on the trade screen. A venue wallet and an unknown wallet read differently. The route is `/api/monad/nansen`. The board still lists results if the key is missing. The stance is the feature.
+
+Demo: https://drive.google.com/drive/folders/14CgTT_e6neN-ATLj65MPqjhP_x82j2PM?usp=sharing
 
 ---
 

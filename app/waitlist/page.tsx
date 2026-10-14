@@ -397,7 +397,7 @@ export default function WaitlistPage() {
 
 
                 <div className="footer-meta">
-                    <div className="footer-meta-item">2026 © All rights reserved</div>
+                    <div className="footer-meta-item">2026 Amaan Jilani Sayyad. MIT License.</div>
 
                     <div className="footer-link-group">
                         <a href="https://monblip.fun" target="_blank" rel="noopener noreferrer" className="footer-meta-item">Live</a>

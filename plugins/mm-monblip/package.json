@@ -2,7 +2,7 @@
   "name": "mm-plugin-monblip",
   "version": "0.1.0",
   "description": "Fund a MonBlip round on Monad and sign it with the MetaMask Agent Wallet.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "keywords": ["oclif-plugin"],
   "files": ["dist", "oclif.manifest.json", "skills", "README.md"],
