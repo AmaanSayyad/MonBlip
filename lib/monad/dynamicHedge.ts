@@ -12,13 +12,19 @@ function credentials() {
   return { authToken, environmentId, password };
 }
 
+/** Hosted runs lose the state file, and signing needs the full metadata, so it can also come from the environment. */
 async function savedWallet(): Promise<WalletMetadata | null> {
-  try {
-    const raw = await readFile(walletFile, 'utf8');
-    const parsed = JSON.parse(raw) as WalletMetadata;
-    if (parsed?.walletId && parsed?.accountAddress) return parsed;
-  } catch {
-    // First signature creates the wallet.
+  const sources = [
+    () => readFile(walletFile, 'utf8'),
+    async () => process.env.DYNAMIC_HEDGE_WALLET?.trim() || '',
+  ];
+  for (const source of sources) {
+    try {
+      const parsed = JSON.parse(await source()) as WalletMetadata;
+      if (parsed?.walletId && parsed?.accountAddress) return parsed;
+    } catch {
+      // First signature creates the wallet.
+    }
   }
   return null;
 }
