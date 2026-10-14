@@ -1,0 +1,270 @@
+/**
+ * Balance state slice for Zustand store
+ * Manages house balance state and operations (deposit, withdraw, bet)
+ * 
+ * Task: 8.2 Update balance slice for BNB migration
+ * Requirements: 3.5
+ */
+
+import { StateCreator } from "zustand";
+import { balanceMutationHeaders } from "@/lib/balance/balanceClientHeaders";
+import { resolveHouseLedgerCurrency } from "@/lib/balance/houseLedgerCurrency";
+import { readStored, writeStored } from "@/lib/brand/browserStore";
+
+export interface BalanceState {
+  // State
+  houseBalance: number;
+  demoBalance: number;
+  accountType: 'real' | 'demo';
+  userTier: 'free' | 'standard' | 'vip';
+  isLoading: boolean;
+  error: string | null;
+
+  // Actions
+  fetchBalance: (address: string) => Promise<void>;
+  setBalance: (balance: number) => void;
+  updateBalance: (amount: number, operation: 'add' | 'subtract') => void;
+  depositFunds: (address: string, amount: number, txHash: string) => Promise<any>;
+  withdrawFunds: (
+    address: string,
+    amount: number,
+    security?: { signature?: string; signedAt?: number }
+  ) => Promise<any>;
+  toggleAccountType: () => void;
+  clearError: () => void;
+}
+
+/**
+ * Create balance slice for Zustand store
+ * Handles house balance fetching, updates, deposits, and withdrawals
+ */
+export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
+  // Initial state
+  houseBalance: 0,
+  demoBalance: 10000,
+  accountType: (readStored('monblip.account.type', ['bynomo_account_type']) as 'real' | 'demo') || 'real',
+  userTier: 'free',
+  isLoading: false,
+  error: null,
+
+  /**
+   * Fetch house balance for a user address
+   * Queries the balance API endpoint
+   * @param address - Wallet address
+   */
+  fetchBalance: async (address: string) => {
+    const { accountType } = get();
+    const currency = resolveHouseLedgerCurrency({
+      network: (get() as any).network || 'BNB',
+      selectedCurrency: (get() as any).selectedCurrency,
+      userAddress: address,
+    });
+
+    // Skip API fetch for demo mode as it uses local state only
+    if (!address || accountType === 'demo' || address.startsWith('0xDEMO')) {
+      return;
+    }
+
+    try {
+      set({ isLoading: true, error: null });
+
+      const response = await fetch(`/api/balance/${address}?currency=${currency}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch balance');
+      }
+
+      const data = await response.json();
+
+      set({
+        houseBalance: data.balance || 0,
+        userTier: data.tier || 'free',
+        isLoading: false,
+        error: null
+      });
+    } catch (error) {
+      if (!(error instanceof Error) || !/unavailable|failed to fetch|network/i.test(error.message)) {
+        console.warn('House balance is unavailable');
+      }
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch balance'
+      });
+    }
+  },
+
+  /**
+   * Set house balance directly
+   * Used by event listeners and after successful operations
+   * @param balance - New balance value
+   */
+  setBalance: (balance: number) => {
+    set({ houseBalance: balance });
+  },
+
+  /**
+   * Update house balance by adding or subtracting an amount
+   * Used for optimistic updates before API confirmation
+   * @param amount - Amount to add or subtract
+   * @param operation - 'add' to increase balance, 'subtract' to decrease
+   */
+  updateBalance: (amount: number, operation: 'add' | 'subtract') => {
+    const { houseBalance, demoBalance, accountType } = get();
+
+    if (accountType === 'demo') {
+      const newDemoBalance = operation === 'add'
+        ? demoBalance + amount
+        : Math.max(0, demoBalance - amount);
+      set({ demoBalance: newDemoBalance });
+      return;
+    }
+
+    const newBalance = operation === 'add'
+      ? houseBalance + amount
+      : Math.max(0, houseBalance - amount);
+
+    set({ houseBalance: newBalance });
+  },
+
+  /**
+   * Toggle between real and demo accounts
+   */
+  toggleAccountType: () => {
+    const { accountType } = get();
+    const newType = accountType === 'real' ? 'demo' : 'real';
+    set({ accountType: newType });
+    if (typeof window !== 'undefined') {
+      writeStored('monblip.account.type', newType);
+    }
+  },
+
+  /**
+   * Process deposit funds operation
+   * Called after deposit transaction completes to update database
+   * @param address - User wallet address
+   * @param amount - Deposit amount
+   * @param txHash - Transaction hash for audit trail
+   */
+  depositFunds: async (address: string, amount: number, txHash: string) => {
+    const currency = resolveHouseLedgerCurrency({
+      network: (get() as any).network || 'BNB',
+      selectedCurrency: (get() as any).selectedCurrency,
+      userAddress: address,
+    });
+
+    try {
+      set({ isLoading: true, error: null });
+
+      const response = await fetch('/api/balance/deposit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...balanceMutationHeaders(),
+        },
+        body: JSON.stringify({
+          userAddress: address,
+          amount,
+          txHash,
+          currency: currency,
+          userTier: (get() as any).userTier || 'free',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to process deposit');
+      }
+
+      const data = await response.json();
+
+      set({
+        houseBalance: data.newBalance,
+        isLoading: false,
+        error: null
+      });
+
+      // Secondary check after a delay to ensure eventual consistency
+      setTimeout(() => get().fetchBalance(address), 1500);
+
+      return data;
+    } catch (error) {
+      console.error('Error processing deposit:', error);
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to process deposit'
+      });
+      throw error;
+    }
+  },
+
+  /**
+   * Process withdraw funds operation
+   * Called after withdrawal transaction completes to update database
+   * @param address - User wallet address
+   * @param amount - Withdrawal amount
+   */
+  withdrawFunds: async (
+    address: string,
+    amount: number,
+    security?: { signature?: string; signedAt?: number }
+  ) => {
+    const currency = resolveHouseLedgerCurrency({
+      network: (get() as any).network || 'BNB',
+      selectedCurrency: (get() as any).selectedCurrency,
+      userAddress: address,
+    });
+
+    try {
+      set({ isLoading: true, error: null });
+
+      const response = await fetch('/api/balance/withdraw', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...balanceMutationHeaders(),
+        },
+        body: JSON.stringify({
+          userAddress: address,
+          amount,
+          currency: currency,
+          userTier: (get() as any).userTier || 'free',
+          signature: security?.signature,
+          signedAt: security?.signedAt,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to process withdrawal');
+      }
+
+      const data = await response.json();
+
+      set({
+        houseBalance: data.newBalance,
+        isLoading: false,
+        error: null
+      });
+
+      // Secondary check after a delay to ensure eventual consistency
+      setTimeout(() => get().fetchBalance(address), 1500);
+
+      return data;
+    } catch (error) {
+      console.error('Error processing withdrawal:', error);
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to process withdrawal'
+      });
+      throw error;
+    }
+  },
+
+  /**
+   * Clear error message
+   */
+  clearError: () => {
+    set({ error: null });
+  }
+});
