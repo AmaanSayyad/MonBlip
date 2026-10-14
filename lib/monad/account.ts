@@ -31,7 +31,9 @@ function emit() {
 
 export function subscribeMera(listener: () => void) {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /** new: no passkey remembered. locked: passkey remembered, session ended. live: prompt-free signing. */
@@ -171,11 +173,11 @@ export async function signMeraTypedData(typed: {
   if (!session) throw new Error('Sign in with Mera first');
   const account = toViemAccount(session);
   return account.signTypedData({
-    domain: typed.domain as never,
-    types: typed.types as never,
+    domain: typed.domain,
+    types: typed.types,
     primaryType: typed.primaryType,
-    message: typed.message as never,
-  });
+    message: typed.message,
+  } as never);
 }
 
 export function meraWalletClient() {
@@ -237,7 +239,11 @@ export async function sealBetSlip(slip: Record<string, unknown>): Promise<string
   const key = await slipKeyMaterial();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(JSON.stringify(slip));
-  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: Uint8Array.from(iv) }, key, encoded);
+  const cipher = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: Uint8Array.from(iv) },
+    key,
+    encoded as BufferSource,
+  );
   const packed = new Uint8Array(iv.byteLength + cipher.byteLength);
   packed.set(iv, 0);
   packed.set(new Uint8Array(cipher), iv.byteLength);

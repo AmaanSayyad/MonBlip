@@ -143,19 +143,19 @@ async function enroll(address: string, key: { stored: StoredKey; privateKey: Key
     domain.chainId = domain.chainId.startsWith('0x') ? Number(domain.chainId) : Number(domain.chainId);
   }
   const digest = hashTypedData({
-    domain: domain as never,
-    types: types as never,
+    domain,
+    types,
     primaryType: typed.primaryType,
-    message: typed.message as never,
-  });
+    message: typed.message,
+  } as never);
   const signed = await signDynamicDigest(digest, { ...typed, domain, types });
   const recovered = await recoverTypedDataAddress({
-    domain: domain as never,
-    types: types as never,
+    domain,
+    types,
     primaryType: typed.primaryType,
-    message: typed.message as never,
+    message: typed.message,
     signature: signed.signature,
-  });
+  } as never);
   if (recovered.toLowerCase() !== address.toLowerCase()) {
     throw new Error(`Dynamic typed-data signature recovered ${recovered}, expected ${address}`);
   }
@@ -265,9 +265,10 @@ export async function submitHouseOrder(input: {
     enrolled = await enroll(address, key);
   }
 
-  let wallet: { as?: Array<{ id: number; lfr: number }> } | null = null;
+  type PerplWallet = { as?: Array<{ id: number; lfr: number }> };
+  let wallet: PerplWallet | null = null;
   try {
-    wallet = await signed(enrolled, key.privateKey, 'GET', '/v1/trading/wallet') as typeof wallet;
+    wallet = await signed(enrolled, key.privateKey, 'GET', '/v1/trading/wallet') as PerplWallet;
   } catch (error) {
     const status = (error as { status?: number }).status;
     if (status !== 404) throw error;
@@ -279,7 +280,7 @@ export async function submitHouseOrder(input: {
     };
     const minRaw = BigInt(context.instances?.[0]?.min_account_open_amount || '10000000');
     await openAccount(minRaw);
-    wallet = await signed(enrolled, key.privateKey, 'GET', '/v1/trading/wallet') as typeof wallet;
+    wallet = await signed(enrolled, key.privateKey, 'GET', '/v1/trading/wallet') as PerplWallet;
     account = wallet?.as?.[0];
   }
   if (!account) {

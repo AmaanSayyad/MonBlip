@@ -97,7 +97,7 @@ async function tradeKey(address: string): Promise<StoredKey & { privateKey: Cryp
       return { ...parsed, privateKey: await importPrivate(parsed.pkcs8) };
     }
   }
-  const pair = await crypto.subtle.generateKey({ name: 'Ed25519' } as Algorithm, true, ['sign']);
+  const pair = await crypto.subtle.generateKey({ name: 'Ed25519' } as Algorithm, true, ['sign']) as CryptoKeyPair;
   const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
   const rawPub = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
   const next: StoredKey = {
@@ -134,11 +134,11 @@ async function enroll(key: StoredKey & { privateKey: CryptoKey }) {
     message: typed.message,
   });
   const digest = hashTypedData({
-    domain: typed.domain as never,
-    types: types as never,
+    domain: typed.domain,
+    types,
     primaryType: typed.primaryType,
-    message: typed.message as never,
-  });
+    message: typed.message,
+  } as never);
   const digestBytes = Uint8Array.from(digest.slice(2).match(/.{2}/g)!.map((byte) => parseInt(byte, 16)));
   const pop = new Uint8Array(await crypto.subtle.sign(
     { name: 'Ed25519' } as Algorithm,
@@ -163,13 +163,13 @@ async function signed(key: StoredKey & { privateKey: CryptoKey; apiKey?: string 
   const timestamp = Date.now().toString();
   const nonce = bytesToB64(crypto.getRandomValues(new Uint8Array(16)))
     .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-  const bodyHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload))))
+  const bodyHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload) as BufferSource)))
     .map((byte) => byte.toString(16).padStart(2, '0')).join('');
   const canonical = [CHAIN_ID, method, target, timestamp, nonce, bodyHash].join('\n');
   const sig = new Uint8Array(await crypto.subtle.sign(
     { name: 'Ed25519' } as Algorithm,
     key.privateKey,
-    new TextEncoder().encode(canonical),
+    new TextEncoder().encode(canonical) as BufferSource,
   ));
   return perpl(method, target, payload, {
     'X-API-Key': key.apiKey,
@@ -222,9 +222,10 @@ export async function placePerplTrade(): Promise<PerplTradeResult> {
   if (!address) throw new Error('Sign in with the Mera passkey first');
   const key = await enroll(await tradeKey(address));
 
-  let wallet: { as?: Array<{ id: number; lfr: number; b: string }> } | null = null;
+  type PerplWallet = { as?: Array<{ id: number; lfr: number; b: string }> };
+  let wallet: PerplWallet | null = null;
   try {
-    wallet = await signed(key, 'GET', '/v1/trading/wallet') as typeof wallet;
+    wallet = await signed(key, 'GET', '/v1/trading/wallet') as PerplWallet;
   } catch (error) {
     const status = (error as { status?: number }).status;
     if (status !== 404) throw error;
@@ -250,7 +251,7 @@ export async function placePerplTrade(): Promise<PerplTradeResult> {
       throw new Error(`This passkey holds ${formatUnits(balance, 6)} AUSD. Perpl needs ${formatUnits(minRaw, 6)} AUSD in the same wallet before it will open an account.`);
     }
     await openAccount(minRaw);
-    wallet = await signed(key, 'GET', '/v1/trading/wallet') as typeof wallet;
+    wallet = await signed(key, 'GET', '/v1/trading/wallet') as PerplWallet;
     account = wallet?.as?.[0];
   }
   if (!account) throw new Error('Perpl has no trading account for this passkey yet');
