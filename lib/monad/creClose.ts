@@ -42,7 +42,25 @@ async function readStore(): Promise<Store> {
   }
 }
 
+async function database() {
+  try {
+    return (await import('@/lib/supabase/serviceClient')).supabaseService;
+  } catch {
+    return null;
+  }
+}
+
 export async function latestClose() {
+  const db = await database();
+  if (db) {
+    const { data } = await db
+      .from('cre_round_closes')
+      .select('close')
+      .order('posted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data?.close) return data.close as RoundClose;
+  }
   return (await readStore()).last;
 }
 
@@ -51,7 +69,12 @@ export async function recordClose(close: Omit<RoundClose, 'postedAt'> & { posted
   const next: RoundClose = { ...close, postedAt: close.postedAt || new Date().toISOString() };
   store.last = next;
   store.history = [next, ...store.history].slice(0, 50);
-  await writeState(file, JSON.stringify(store));
+  await writeState(file, JSON.stringify(store)).catch(() => {});
+  const db = await database();
+  if (db) {
+    const { error } = await db.from('cre_round_closes').insert({ bet_id: next.betId, close: next, posted_at: next.postedAt });
+    if (error) console.warn('[cre] close not stored', error.message);
+  }
   return next;
 }
 
