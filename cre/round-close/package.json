@@ -1,0 +1,17 @@
+{
+  "name": "monblip-round-close",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "bunx cre-setup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "^1.18.0",
+    "viem": "2.34.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}
