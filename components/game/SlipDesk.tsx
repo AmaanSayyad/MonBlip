@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { lockSlip, readSealedSlips, sealedSlips, slipIsOpen, subscribeMera } from '@/lib/monad/account';
 
-type Slip = { direction?: string; amount?: number; asset?: string };
+type Slip = { direction?: string; amount?: number; currency?: string; asset?: string };
 
 export function SlipDesk() {
   const [count, setCount] = useState(0);
@@ -60,7 +60,7 @@ export function SlipDesk() {
         <ul className="space-y-0.5 text-[11px] text-white">
           {slips.slice(0, 3).map((slip, index) => (
             <li key={index}>
-              {slip.direction} {slip.amount} {slip.asset}
+              {slip.direction} {slip.amount}{slip.currency ? ` ${slip.currency}` : ''} on {slip.asset}
             </li>
           ))}
         </ul>

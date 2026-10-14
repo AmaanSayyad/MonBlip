@@ -496,15 +496,17 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
       addActiveBet(activeBet);
       stakeHeld = false;
 
-      if ((get() as { network?: string }).network === 'MONAD' && currency === 'AUSD') {
+      if ((get() as { network?: string }).network === 'MONAD') {
         void import('@/lib/monad/account').then(async ({ sealBetSlip }) => {
           const sealed = await sealBetSlip({
             betId: data.betId,
             direction,
             amount: betAmount,
+            currency,
             duration: durationSeconds,
             asset: selectedAsset,
           });
+          if (currency !== 'AUSD') return;
           void fetch('/api/monad/perpl', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

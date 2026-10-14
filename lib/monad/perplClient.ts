@@ -22,6 +22,13 @@ const exchangeAbi = [
   },
   {
     type: 'function',
+    name: 'depositCollateral',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'amountCNS', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
     name: 'withdrawCollateral',
     stateMutability: 'nonpayable',
     inputs: [{ name: 'amountCNS', type: 'uint256' }],
@@ -85,6 +92,7 @@ export type PerplTradeResult = {
   fillPrice?: number;
   filledSize?: number;
   forwardingTx?: string;
+  collateralTx?: string;
   statuses?: unknown;
   detail: string;
 };
@@ -238,6 +246,22 @@ async function signed(key: StoredKey & { privateKey: CryptoKey; apiKey?: string 
 }
 
 async function openAccount(amountRaw: bigint) {
+  await approveAusd(amountRaw);
+  const wallet = meraWalletClient();
+  const account = meraAddress();
+  if (!account) throw new Error('Sign in with Mera first');
+  const publicClient = (await import('viem')).createPublicClient({
+    chain: monad,
+    transport: (await import('viem')).http('https://rpc.monad.xyz'),
+  });
+  const data = encodeFunctionData({ abi: exchangeAbi, functionName: 'createAccount', args: [amountRaw] });
+  const gas = await publicClient.estimateGas({ account, to: EXCHANGE, data });
+  const hash = await wallet.sendTransaction({ to: EXCHANGE, data, gas: gas + gas / 5n });
+  await publicClient.waitForTransactionReceipt({ hash });
+  return hash;
+}
+
+async function approveAusd(amountRaw: bigint) {
   const wallet = meraWalletClient();
   const account = meraAddress();
   if (!account) throw new Error('Sign in with Mera first');
@@ -268,11 +292,36 @@ async function openAccount(amountRaw: bigint) {
     });
     await publicClient.waitForTransactionReceipt({ hash: approveHash });
   }
-  const data = encodeFunctionData({ abi: exchangeAbi, functionName: 'createAccount', args: [amountRaw] });
-  const gas = await publicClient.estimateGas({ account, to: EXCHANGE, data });
-  const hash = await wallet.sendTransaction({ to: EXCHANGE, data, gas: gas + gas / 5n });
-  await publicClient.waitForTransactionReceipt({ hash });
-  return hash;
+}
+
+const TOP_UP_RAW = 1_000_000n;
+const MIN_FREE_RAW = 250_000n;
+
+/** An open account with no free collateral gets 1 AUSD from the passkey before the order. */
+async function topUpCollateral(address: `0x${string}`, accountId: number) {
+  const { createPublicClient, http } = await import('viem');
+  const publicClient = createPublicClient({ chain: monad, transport: http('https://rpc.monad.xyz') });
+  const info = await publicClient.readContract({
+    address: EXCHANGE,
+    abi: exchangeAbi,
+    functionName: 'getAccountByAddr',
+    args: [address],
+  });
+  if (info.balanceCNS - info.lockedBalanceCNS >= MIN_FREE_RAW) return undefined;
+  const balance = await publicClient.readContract({
+    address: MONAD_AUSD,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: [address],
+  });
+  if (balance < TOP_UP_RAW) {
+    throw new Error(`Perpl account #${accountId} has no free collateral, and this passkey holds ${formatUnits(balance, 6)} AUSD. Add at least 1 AUSD to the passkey to place the long.`);
+  }
+  await approveAusd(TOP_UP_RAW);
+  return sendFromPasskey(
+    encodeFunctionData({ abi: exchangeAbi, functionName: 'depositCollateral', args: [TOP_UP_RAW] }),
+    'Perpl did not take the collateral',
+  );
 }
 
 /** Perpl's API picks up a new on-chain account a few seconds after the block. */
@@ -342,6 +391,7 @@ export async function placePerplTrade(): Promise<PerplTradeResult> {
 
   let forwardingTx: string | undefined;
   if (account.fw === false) forwardingTx = await enableForwarding();
+  const collateralTx = await topUpCollateral(address, account.id);
 
   const seen = new Set(((await history(key))?.d ?? []).map(historyKey));
   const requestId = Number(account.lfr || 0) + 1;
@@ -372,6 +422,7 @@ export async function placePerplTrade(): Promise<PerplTradeResult> {
     accountId: account.id,
     requestId,
     forwardingTx,
+    collateralTx,
     statuses,
   };
   if (!accepted) {

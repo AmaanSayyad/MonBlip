@@ -185,6 +185,8 @@ export default function PerplPage() {
   }));
 
   const newAccount = accountId == null;
+  const freeCollateral = perplAccount ? perplAccount.balance - perplAccount.locked : null;
+  const needsTopUp = !newAccount && freeCollateral != null && freeCollateral < 0.25;
   const lowGas = passkey && walletMon != null && walletMon < MIN_GAS_MON;
 
   return (
@@ -278,7 +280,9 @@ export default function PerplPage() {
                   ? 'Balances of the passkey on Monad show after sign-in.'
                   : newAccount
                     ? 'The first order takes 10 AUSD from the passkey to open the Perpl account.'
-                    : `Perpl account #${accountId} holds your collateral. Wallet AUSD stays in the passkey.`}
+                    : needsTopUp
+                      ? `Perpl account #${accountId} has no free collateral. The next order adds 1 AUSD from the passkey first.`
+                      : `Perpl account #${accountId} holds ${freeCollateral != null ? `${freeCollateral.toFixed(2)} AUSD of ` : ''}collateral. Wallet AUSD stays in the passkey.`}
                 {lowGas ? ' Add a little MON for gas, for example from Fund.' : ''}
               </p>
               <AnimatePresence initial={false}>
@@ -312,7 +316,11 @@ export default function PerplPage() {
                   ['Size', '1 MON'],
                   ['Type', 'Market'],
                   ['Leverage', '1×'],
-                  ['Collateral', newAccount ? '10 AUSD opens the account' : `Account #${accountId}`],
+                  ['Collateral', newAccount
+                    ? '10 AUSD opens the account'
+                    : needsTopUp
+                      ? `Adds 1 AUSD to #${accountId}`
+                      : `${freeCollateral != null ? `${freeCollateral.toFixed(2)} AUSD · ` : ''}#${accountId}`],
                 ].map(([label, value]) => (
                   <div key={String(label)} className="flex items-center justify-between gap-3">
                     <dt className="text-white/50">{label}</dt>
@@ -332,7 +340,9 @@ export default function PerplPage() {
               <p className="mt-2 text-center text-[11px] leading-5 text-white/45">
                 {newAccount
                   ? 'Opens the account, turns on API orders, then sends the long. Each step uses a little MON for gas.'
-                  : 'Perpl fills it at market. The result shows below.'}
+                  : needsTopUp
+                    ? 'Approves and deposits 1 AUSD, then sends the long. Perpl fills it at market.'
+                    : 'Perpl fills it at market. The result shows below.'}
               </p>
 
               <AnimatePresence initial={false} mode="popLayout">
@@ -364,6 +374,17 @@ export default function PerplPage() {
                         className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-[#B781FE] hover:text-white"
                       >
                         API orders turned on · view transaction
+                        <ExternalLink className="h-3 w-3" aria-hidden />
+                      </a>
+                    ) : null}
+                    {result.collateralTx ? (
+                      <a
+                        href={`https://monadvision.com/tx/${result.collateralTx}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1.5 flex items-center gap-1 text-[11px] text-[#B781FE] hover:text-white"
+                      >
+                        1 AUSD added to Perpl · view transaction
                         <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>
                     ) : null}
