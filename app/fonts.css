@@ -1,0 +1,63 @@
+@font-face {
+  font-family: "Capsule Sans Text";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/fonts/CapsuleSansText-Light.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Capsule Sans Text";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/CapsuleSansText-Book.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Capsule Sans Text";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/CapsuleSansText-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Capsule Sans Text";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/CapsuleSansText-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Martina Plantijn";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/MartinaPlantijn-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "RH Phonic";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/RHPhonic-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "RH Phonic";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/RHPhonic-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "RH Phonic";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/RHPhonic-Bold.woff2") format("woff2");
+}
