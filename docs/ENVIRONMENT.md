@@ -34,11 +34,19 @@ The human account is a Mera passkey. MetaMask is the other wallet. Privy is not 
 
 `AURORA_INTENTS_API_KEY` quotes a deposit address that delivers MON. `AURORA_MONAD_AUSD_ASSET` stays empty while Aurora does not list AUSD on Monad.
 
-`DYNAMIC_AUTH_TOKEN`, `DYNAMIC_ENVIRONMENT_ID`, and `DYNAMIC_WALLET_PASSWORD` sign the house hedge. `DYNAMIC_AGENT_PRIVATE_KEY` stays empty.
+`DYNAMIC_AUTH_TOKEN`, `DYNAMIC_ENVIRONMENT_ID`, and `DYNAMIC_WALLET_PASSWORD` sign the house hedge. `DYNAMIC_AGENT_PRIVATE_KEY` stays empty. Local runs keep the hedge wallet in `.dynamic/hedge-wallet.json`. Hosted runs read the same metadata from `DYNAMIC_HEDGE_WALLET`.
 
-`NANSEN_API_KEY` reads wallet labels.
+`PERPL_CLAIM_ADDRESSES` lists the passkeys that may claim house Perpl funds, comma separated.
+
+`NANSEN_API_KEY` reads wallet labels. `ENVIO_API_TOKEN` reads HyperSync.
 
 `CRE_WEBHOOK_SECRET` is set only when the Chainlink CRE workflow sends `x-cre-secret`. The local settle route is `/api/monad/settle`.
+
+`CRE_ETH_PRIVATE_KEY` is for the CRE CLI. It lives in the same `.env`, so run the simulation from `cre/` with `-e ../.env`:
+
+```bash
+cre workflow simulate round-close -e ../.env --target staging-settings --non-interactive --trigger-index 0 --http-payload payload.json --skip-type-checks --allow-unknown-chains
+```
 
 ## Prices and admin
 
