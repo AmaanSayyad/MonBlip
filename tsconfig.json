@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "**/node_modules", "cre", "near-docs", "Overflow", "Overflow_temp", "Stellar", "**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"]
+  "exclude": ["node_modules", "**/node_modules", "cre", "plugins", "near-docs", "Overflow", "Overflow_temp", "Stellar", "**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"]
 }
