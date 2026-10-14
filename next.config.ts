@@ -33,13 +33,13 @@ const nextConfig: NextConfig = {
       "frame-ancestors 'none'",
       "form-action 'self'",
       // Keep script policy compatible with Next/Turbopack runtime and in-app tooling.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com https://*.posthog.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com https://*.posthog.com https://s3.tradingview.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",
       "connect-src 'self' https: wss:",
       // Allow only known embed providers used by the app.
-      "frame-src https://www.youtube.com https://youtube.com https://docs.google.com https://dexscreener.com",
+      "frame-src https://www.youtube.com https://youtube.com https://docs.google.com https://dexscreener.com https://s.tradingview.com https://www.tradingview-widget.com https://*.tradingview.com",
       "upgrade-insecure-requests",
     ].join("; ");
 

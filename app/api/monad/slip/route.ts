@@ -1,8 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { NextRequest, NextResponse } from 'next/server';
+import { stateFile, writeState } from '@/lib/server/stateFile';
 
-const file = path.join(process.cwd(), '.slips', 'journal.json');
+const file = stateFile('.slips', 'journal.json');
 
 type Journal = Record<string, string[]>;
 
@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
   const journal = await load();
   const prior = journal[address] || [];
   journal[address] = [sealed, ...prior.filter((row) => row !== sealed)].slice(0, 20);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, JSON.stringify(journal), { mode: 0o600 });
+  await writeState(file, JSON.stringify(journal));
   return NextResponse.json({ stored: journal[address].length });
 }

@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { ArrowDown, Check, Copy } from 'lucide-react';
 import { useOverflowStore } from '@/lib/store';
 import { getFeePercent } from '@/lib/fees/platformFee';
-import { Card } from '@/components/ui/Card';
 import { DepositModal } from './DepositModal';
 import { WithdrawModal } from './WithdrawModal';
 import { ReceiptDrawer, type ReceiptData } from './ReceiptDrawer';
 import { useToast } from '@/lib/hooks/useToast';
+import { OPEN_DEPOSIT_EVENT, OPEN_WITHDRAW_EVENT, consumeDepositRequest, consumeWithdrawRequest } from '@/lib/ui/depositPrompt';
+import { TokenLogo } from '@/components/ui/TokenLogo';
 
 /**
  * BalanceDisplay Component
@@ -24,7 +26,12 @@ import { useToast } from '@/lib/hooks/useToast';
  * - Show loading state while fetching
  * - Format balance to 4 decimal places
  */
-export const BalanceDisplay: React.FC = () => {
+interface BalanceDisplayProps {
+  /** On-chain wallet balance shown above the house balance, so the deposit path reads top to bottom. */
+  wallet?: { balance: number; loading?: boolean };
+}
+
+export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ wallet }) => {
   const houseBalance = useOverflowStore(state => state.houseBalance);
   const demoBalance = useOverflowStore(state => state.demoBalance);
   const accountType = useOverflowStore(state => state.accountType);
@@ -43,6 +50,28 @@ export const BalanceDisplay: React.FC = () => {
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [walletKind, setWalletKind] = useState<'Passkey wallet' | 'MetaMask'>('Passkey wallet');
+  useEffect(() => {
+    void import('@/lib/monad/injectedWallet').then(({ metaMaskActive }) => setWalletKind(metaMaskActive() ? 'MetaMask' : 'Passkey wallet'));
+  }, [address]);
+  useEffect(() => {
+    if (accountType !== 'real') return;
+    if (consumeDepositRequest()) setIsDepositModalOpen(true);
+    if (consumeWithdrawRequest()) setIsWithdrawModalOpen(true);
+    const open = () => {
+      if (consumeDepositRequest()) setIsDepositModalOpen(true);
+    };
+    const openWithdraw = () => {
+      if (consumeWithdrawRequest()) setIsWithdrawModalOpen(true);
+    };
+    window.addEventListener(OPEN_DEPOSIT_EVENT, open);
+    window.addEventListener(OPEN_WITHDRAW_EVENT, openWithdraw);
+    return () => {
+      window.removeEventListener(OPEN_DEPOSIT_EVENT, open);
+      window.removeEventListener(OPEN_WITHDRAW_EVENT, openWithdraw);
+    };
+  }, [accountType]);
   const feePercent = getFeePercent(userTier);
 
   // House credits: sync when this panel mounts or wallet / ledger currency changes.
@@ -82,7 +111,7 @@ export const BalanceDisplay: React.FC = () => {
 
     setIsRefreshing(true);
     try {
-      await fetchBalance(address);
+      await Promise.all([fetchBalance(address), useOverflowStore.getState().refreshWalletBalance()]);
       toast.success('Balance refreshed');
     } catch (error) {
       console.error('Error refreshing balance:', error);
@@ -183,6 +212,18 @@ export const BalanceDisplay: React.FC = () => {
               : currentSymbol === 'ETH' ? '/logos/ticker/eth.svg'
                 : null;
 
+  const showWallet = Boolean(wallet) && accountType === 'real';
+  const walletBalance = wallet?.balance ?? 0;
+  const walletFormatted = Number(walletBalance.toFixed(4)).toString();
+  const walletWaiting = showWallet && !wallet?.loading && walletBalance > 0 && houseBalance <= 0;
+  const hint = !showWallet || isLoading
+    ? null
+    : walletWaiting
+      ? `${walletFormatted} ${currentSymbol} is waiting in your wallet. Deposit it to play; rounds are paid from the house balance.`
+      : houseBalance <= 0 && walletBalance <= 0 && !wallet?.loading
+        ? `Add ${currentSymbol} to your wallet, then deposit it here. Deposit shows every way to fund it.`
+        : null;
+
   return (
     <>
       <div className="overflow-hidden rounded-2xl border border-[#2a2a2a] bg-[#141414]">
@@ -199,11 +240,44 @@ export const BalanceDisplay: React.FC = () => {
           </div>
         )}
 
-        <div className="space-y-2 p-2.5">
+        {showWallet && address ? (
+          <div className="relative border-b border-[#2a2a2a] px-3 pb-4 pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-[#DDD7FE]">{walletKind}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(address);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1400);
+                }}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md px-1 font-mono text-[11px] text-white/45 transition hover:bg-white/5 hover:text-white"
+                title="Copy address"
+              >
+                {address.slice(0, 6)}…{address.slice(-4)}
+                {copied ? <Check className="h-3 w-3 text-[#82FF68]" /> : <Copy className="h-3 w-3" />}
+              </button>
+            </div>
+            <p className="mt-1 flex items-center gap-1.5 text-base font-medium tabular-nums text-white">
+              {network === 'MONAD' ? <TokenLogo token={currentSymbol === 'MON' ? 'MON' : 'AUSD'} size={16} /> : null}
+              {wallet?.loading ? '…' : walletFormatted} <span className="text-xs text-[#B781FE]">{currentSymbol}</span>
+            </p>
+            <span
+              className={`absolute -bottom-3 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${
+                walletWaiting ? 'border-[#7005FC]/60 bg-[#1D1030] text-[#DDD7FE]' : 'border-[#2a2a2a] bg-[#141414] text-white/45'
+              }`}
+              aria-hidden
+            >
+              <ArrowDown className="h-3 w-3" />
+              Deposit
+            </span>
+          </div>
+        ) : null}
+
+        <div className={`space-y-2 p-2.5 ${showWallet && address ? 'pt-4' : ''}`}>
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-[#DDD7FE]">
-              {accountType === 'demo' ? 'Practice balance' : 'House balance'}
-            </p>
+              {accountType === 'demo' ? 'Practice balance' : 'House balance'}            </p>
 
             <div className="flex items-center gap-2">
               {accountType === 'real' && (
@@ -231,9 +305,11 @@ export const BalanceDisplay: React.FC = () => {
             <div className="h-8 w-28 animate-pulse rounded-lg bg-white/10" />
           ) : (
             <div className="flex items-baseline gap-2">
-              {chainLogo && (
+              {network === 'MONAD' ? (
+                <TokenLogo token={currentSymbol === 'MON' ? 'MON' : 'AUSD'} size={20} className="self-center" />
+              ) : chainLogo ? (
                 <img src={chainLogo} alt="" className="h-5 w-5 self-center rounded-md bg-black object-contain p-0.5" />
-              )}
+              ) : null}
               <p className="text-xl font-medium tabular-nums text-white">{formattedBalance}</p>
               <span className="text-sm font-medium text-[#7005FC]">{currentSymbol}</span>
             </div>
@@ -248,12 +324,20 @@ export const BalanceDisplay: React.FC = () => {
               Reset to 10,000
             </button>
           ) : (
+            <>
+            {hint ? (
+              <p className={`rounded-xl px-3 py-2 text-[12px] leading-5 ${walletWaiting ? 'bg-[#7005FC]/15 text-white' : 'bg-white/[0.04] text-[#DDD7FE]'}`}>
+                {hint}
+              </p>
+            ) : null}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={handleDeposit}
                 disabled={!address || isLoading}
-                className="h-10 rounded-full bg-[#7005FC] text-sm font-medium text-white transition hover:bg-[#8F3BFF] disabled:cursor-not-allowed disabled:opacity-40"
+                className={`h-10 rounded-full bg-[#7005FC] text-sm font-medium text-white transition hover:bg-[#8F3BFF] disabled:cursor-not-allowed disabled:opacity-40 ${
+                  walletWaiting ? 'shadow-[0_0_0_3px_rgba(112,5,252,0.35)]' : ''
+                }`}
               >
                 Deposit
               </button>
@@ -266,6 +350,7 @@ export const BalanceDisplay: React.FC = () => {
                 Withdraw
               </button>
             </div>
+            </>
           )}
 
           {!address && (

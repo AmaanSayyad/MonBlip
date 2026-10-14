@@ -1,10 +1,10 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { createPublicClient, decodeFunctionResult, encodeFunctionData, http } from 'viem';
 import { monad } from 'viem/chains';
 import { MONAD_AUSD } from '@/lib/chains/supported';
+import { stateFile, writeState } from '@/lib/server/stateFile';
 
-const file = path.join(process.cwd(), '.data', 'cre-closes.json');
+const file = stateFile('.data', 'cre-closes.json');
 const priceUrl = 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT';
 
 const decimalsAbi = [
@@ -51,8 +51,7 @@ export async function recordClose(close: Omit<RoundClose, 'postedAt'> & { posted
   const next: RoundClose = { ...close, postedAt: close.postedAt || new Date().toISOString() };
   store.last = next;
   store.history = [next, ...store.history].slice(0, 50);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, JSON.stringify(store), { mode: 0o600 });
+  await writeState(file, JSON.stringify(store));
   return next;
 }
 

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { WalletConnect } from './wallet';
+import { AssetSearch } from './AssetSearch';
 import { useStore } from '@/lib/store';
 
 const links = [
@@ -104,6 +105,7 @@ export function Header() {
           {demoActivated && (
             <span className="text-[11px] font-medium text-[#7005FC]">Demo on</span>
           )}
+          <AssetSearch />
           <button
             type="button"
             onClick={startGuide}

@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useOverflowStore } from '@/lib/store';
 import { useToast } from '@/lib/hooks/useToast';
 import { calculateFeeAmount, getFeePercentLabel } from '@/lib/fees/platformFee';
+import { friendlyTxError } from '@/lib/monad/txError';
 
 interface WithdrawModalProps {
   isOpen: boolean;
@@ -69,7 +70,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
       onSuccess?.(withdrawAmount, queued ? 'PENDING' : String(result?.txHash || ''));
       onClose();
     } catch (err) {
-      const messageText = err instanceof Error ? err.message : 'Withdrawal failed';
+      const messageText = friendlyTxError(err, 'The withdrawal did not go through. Try again.');
       setError(messageText);
       onError?.(messageText);
       toast.error(messageText);

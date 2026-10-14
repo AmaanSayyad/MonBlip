@@ -59,22 +59,18 @@ function Arrow() {
 
 const flow = 'flex flex-col items-stretch gap-2 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center';
 
-function ChainLogoDiagram({ balance }: { balance?: boolean }) {
+function FundingDiagram() {
   return (
     <div className={flow}>
-      <DiagramNode src="/brand/monblip-mark.png" label="MonBlip" />
-      <Arrow />
       <div className="flex w-full flex-col gap-2 sm:w-auto">
-        {chainMarks.map((chain) => (
-          <DiagramNode key={chain.label} src={chain.src} label={`${chain.label} ${chain.detail}`} />
-        ))}
+        <DiagramNode src="/logos/sponsors/metamask.svg" label="MetaMask top-up" />
+        <DiagramNode label="Any wallet or exchange" />
+        <DiagramNode src="/logos/sponsors/aurora.svg" label="Aurora from another chain" />
       </div>
-      {balance ? (
-        <>
-          <Arrow />
-          <DiagramNode label="House balance" />
-        </>
-      ) : null}
+      <Arrow />
+      <DiagramNode src="/logos/sponsors/mera.svg" extra="/logos/chains/monad.svg" label="Passkey wallet on Monad" />
+      <Arrow />
+      <DiagramNode src="/brand/monblip-mark.png" label="Deposit into house balance" />
     </div>
   );
 }
@@ -172,10 +168,12 @@ function MarketStrip() {
 }
 
 function PriceDiagram() {
-  const steps = [
-    { label: 'Monad', src: '/logos/chains/monad.svg', extra: '/logos/sponsors/chainlink.svg' },
+  const steps: Array<{ label: string; src?: string; extra?: string }> = [
+    { label: 'Binance' },
+    { label: 'Bybit' },
     { label: 'Hyperliquid', src: '/logos/companies/hyperliquid.png' },
-    { label: 'Public quotes' },
+    { label: 'Yahoo quotes' },
+    { label: 'Pyth' },
   ];
   return (
     <div className={flow}>
@@ -235,7 +233,7 @@ function SectionDiagram({ logo }: { logo: 'modes' | 'chains' | 'markets' | 'bala
       {logo === 'modes' ? <TraderModeDiagram /> : null}
       {logo === 'chains' ? <SponsorStrip /> : null}
       {logo === 'markets' ? <MarketStrip /> : null}
-      {logo === 'balance' ? <ChainLogoDiagram /> : null}
+      {logo === 'balance' ? <FundingDiagram /> : null}
       {logo === 'prices' ? <PriceDiagram /> : null}
       {logo === 'architecture' ? <ArchitectureDiagram /> : null}
     </div>
@@ -267,8 +265,8 @@ const sections: Array<{ id: string; title: string; body: string[]; logo?: 'modes
     title: '3. Sponsors',
     body: [
       'The desk runs on Monad. The play assets are AUSD and native MON. Each one has its own house balance.',
-      'Mera is the passkey account. MetaMask is the other way in, when the browser already holds MON. Agora is the AUSD balance. Aurora can fund MON from another chain. A deposit is an AUSD transfer, or a native MON transfer, to the house treasury, and Envio indexes those transfers. A withdrawal is paid back in the same asset.',
-      'Chainlink CRE closes the round. When the AUSD book is one-sided, a Dynamic server wallet signs the offsetting Perpl hedge. Nansen turns the wallet’s public labels into a trading stance.',
+      'Mera is the passkey account. One passkey derives a Monad wallet in the browser, with no seed phrase and no extension. A 15-minute session keeps rounds prompt-free, and a deposit or withdrawal asks for the passkey again. MetaMask is the other way in, and it can also top up a passkey wallet in one step. Agora is the AUSD balance. Aurora turns ETH, USDT, or NEAR from another chain into MON on Monad. A deposit is an AUSD transfer, or a native MON transfer, to the house treasury, and Envio indexes those transfers. A withdrawal is paid back in the same asset.',
+      'Chainlink CRE closes BTC direction rounds. The workflow reads the BTC price and AUSD on Monad, then posts the close to the desk, and the trade screen shows it. When the AUSD book is one-sided, a Dynamic server wallet signs the offsetting Perpl hedge. Perpl calls run from the Mumbai region because Perpl refuses traffic from the United States. Nansen turns the wallet’s public labels into a trading stance.',
     ],
     logo: 'chains',
   },
@@ -295,6 +293,8 @@ const sections: Array<{ id: string; title: string; body: string[]; logo?: 'modes
     title: '6. House balance',
     body: [
       'The house balance is the AUSD or MON MonBlip holds for that account. The two balances are separate.',
+      'Funding takes two steps. First the wallet needs AUSD or MON on Monad. A passkey wallet can be filled from MetaMask in one step, from any wallet or exchange by copying its address, or through Aurora. Aurora sets a minimum for each route, and the Fund page shows it in the source asset. Then Deposit moves the amount into the house balance. The deposit window watches the wallet, marks funds as they arrive, and fills in the amount.',
+      'Gas stays with the wallet. A MON deposit leaves 0.02 MON behind. An AUSD deposit needs a little MON, and a MetaMask top-up of AUSD adds 0.05 MON when the wallet is short.',
       'Deposits and withdrawals charge 1% on Free, 0.9% on Standard, and 0.8% on VIP. The fee is taken from the amount. The rest is credited on deposit, or sent to the wallet on withdrawal. A withdrawal at or under $10 is sent from the Monad treasury immediately. Anything above $10 waits for review.',
     ],
     logo: 'balance',
@@ -303,7 +303,8 @@ const sections: Array<{ id: string; title: string; body: string[]; logo?: 'modes
     id: 'prices',
     title: '7. Prices',
     body: [
-      'Each asset is filled from the first source that returns a live price. The chart uses Pyth, then exchange quotes. It asks about once a second. If a request fails, it keeps the last good price. Chainlink CRE closes the round.',
+      'Each asset takes the first live price in this order: Binance, Bybit, Hyperliquid mids, Yahoo quotes for stocks, metals, and FX, then Pyth. A Bybit quote that disagrees with Hyperliquid is dropped, so a different instrument with the same ticker never reaches the chart. Pyth Pro fills anything still missing.',
+      'The chart asks the server every two seconds, so no data key reaches the browser. If a request fails, it keeps the last good price.',
       'An asset with no price stays blank. A round is not settled against a blank quote.',
     ],
     logo: 'prices',
@@ -322,6 +323,7 @@ const sections: Array<{ id: string; title: string; body: string[]; logo?: 'modes
     title: '9. Security',
     body: [
       'Wallet addresses are stored in one canonical form so the same wallet does not split into two balances. A banned wallet is blocked from deposits, rounds, and withdrawals.',
+      'The passkey wallet key is derived in the browser from the passkey’s PRF output and is held only in memory. The session ends after 15 minutes. Each bet slip is sealed with AES-GCM under a second passkey-derived key before it is stored, so a stored slip is ciphertext.',
       'A withdrawal includes a signed message with the address, amount, asset, and time. The server rejects a signature older than five minutes. The payout is the same asset, AUSD or MON, from the Monad treasury.',
       'The database denies public writes. Privileged updates run on the server. Balance calls must come from an allowed origin with a signed session, and the page cannot be embedded.',
     ],
@@ -370,7 +372,7 @@ export default function LitepaperPage() {
   return (
     <div className="monad-page bg-[#070010] text-[#FCFBFF]">
       <div className="mx-auto w-full max-w-[90rem] px-5 py-12 sm:px-8 sm:py-16">
-        <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-[#7005FC]">Technical document</p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-[#7005FC]">Technical document · v1.6 · October 14, 2026</p>
         <h1 className="rh-display mt-3 text-[clamp(2.6rem,5vw,4.25rem)] text-white">Litepaper</h1>
         <p className="mt-4 text-base leading-relaxed text-[#E4E4E4]">
           How MonBlip prices a tick, settles a round from the house balance, and pays AUSD or MON back on Monad.
@@ -460,7 +462,7 @@ export default function LitepaperPage() {
             <section className="panel p-6 sm:p-8">
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-[#7005FC]">Builder</p>
               <div className="mt-4 grid gap-6 sm:grid-cols-[180px_minmax(0,1fr)]">
-                <img src="/logos/Amaan-Sayyad.jpg?v=2" alt="Amaan Sayyad" className="aspect-[4/5] w-full max-w-[240px] rounded-xl object-cover object-[center_18%]" loading="lazy" />
+                <img src="/logos/Amaan-Sayyad.jpg?v=3" alt="Amaan Sayyad" className="aspect-[4/5] w-full max-w-[240px] rounded-xl object-cover object-[center_30%]" loading="lazy" />
                 <div>
                   <h3 className="text-2xl font-medium text-white">Amaan Sayyad</h3>
                   <p className="mt-3 text-base leading-7 text-[#DDD7FE]">
@@ -470,7 +472,7 @@ export default function LitepaperPage() {
                     <a href="https://t.me/amaan029" target="_blank" rel="noreferrer" className={chip}>Telegram</a>
                     <a href="https://x.com/amaanbiz" target="_blank" rel="noreferrer" className={chip}>X</a>
                     <a href="https://linkedin.com/in/amaan-sayyad-/" target="_blank" rel="noreferrer" className={chip}>LinkedIn</a>
-                    <a href="https://amaan-sayyad-portfolio.vercel.app" target="_blank" rel="noreferrer" className={chip}>Portfolio</a>
+                    <a href="https://amaansayyad.com" target="_blank" rel="noreferrer" className={chip}>Portfolio</a>
                   </div>
                 </div>
               </div>

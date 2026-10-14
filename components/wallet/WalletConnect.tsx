@@ -2,8 +2,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useOverflowStore } from '@/lib/store';
 import { meraPhase, subscribeMera } from '@/lib/monad/account';
+import { TokenLogo } from '@/components/ui/TokenLogo';
 
 const CHAIN_MARK = {
   name: 'Monad',
@@ -34,6 +36,8 @@ export function useMonBlipDisconnect() {
 
 export const WalletConnect: React.FC = () => {
   const handleDisconnect = useMonBlipDisconnect();
+  const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { network, address, setConnectModalOpen, houseBalance, demoBalance, accountType, selectedCurrency, setSelectedCurrency } = useOverflowStore();
@@ -64,6 +68,18 @@ export const WalletConnect: React.FC = () => {
     return subscribeMera(() => setPhase(meraPhase()));
   }, []);
 
+  const [walletAmount, setWalletAmount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!open || !address) return;
+    let live = true;
+    setWalletAmount(null);
+    void import('@/lib/chains/evmTreasury')
+      .then(({ readEvmWalletBalance }) => readEvmWalletBalance('MONAD', address, asset))
+      .then((value) => { if (live) setWalletAmount(value); })
+      .catch(() => { if (live) setWalletAmount(null); });
+    return () => { live = false; };
+  }, [open, address, asset]);
+
   const isConnected = !!address;
   const short = address ? `${address.slice(0, 4)}…${address.slice(-4)}` : '';
 
@@ -75,7 +91,7 @@ export const WalletConnect: React.FC = () => {
         data-tour="connect-button"
         className="neon-btn inline-flex h-9 px-3.5 text-sm sm:h-10 sm:px-5"
       >
-        {phase === 'locked' ? 'Unlock' : 'Continue'}
+        {phase === 'locked' ? 'Unlock' : 'Connect'}
       </button>
     );
   }
@@ -86,13 +102,11 @@ export const WalletConnect: React.FC = () => {
         type="button"
         data-tour="connect-button"
         aria-expanded={open}
-        aria-label={`House balance ${houseLabel} on ${chain.name}`}
+        aria-label={`MonBlip balance ${houseLabel} on ${chain.name}`}
         onClick={() => setOpen((value) => !value)}
         className="teal-btn h-9 max-w-[9.5rem] gap-2 pl-1 pr-2.5 text-sm sm:h-10 sm:max-w-none sm:pr-3"
       >
-        <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-black">
-          <img src={chain.logo} alt="" className="h-5 w-5 object-contain" />
-        </span>
+        <TokenLogo token={asset} size={28} />
         <span className="min-w-0 truncate tabular-nums text-white">
           {formatHouseBalance(houseAmount)}
           <span className="ml-1 text-[#DDD7FE]">{asset}</span>
@@ -112,8 +126,22 @@ export const WalletConnect: React.FC = () => {
             </span>
           </div>
           <div className="mx-2 mb-1 rounded-xl bg-black px-3 py-2">
-            <p className="text-[11px] text-[#DDD7FE]">{phase === 'live' ? 'Passkey session · 15 min' : 'House balance'}</p>
-            <p className="mt-0.5 text-sm tabular-nums text-white">{houseLabel}</p>
+            <p className="flex items-center justify-between gap-2 text-[11px] text-[#DDD7FE]">
+              MonBlip balance
+              {phase === 'live' ? <span className="text-[#DDD7FE]/50">Session · 15 min</span> : null}
+            </p>
+            <p className="mt-1 flex items-center gap-2 text-sm tabular-nums text-white">
+              <TokenLogo token={asset} size={18} />
+              {houseLabel}
+            </p>
+            <p className="mt-0.5 text-[11px] text-[#DDD7FE]/50">For rounds on Trade</p>
+            <div className="my-2 h-px bg-white/10" />
+            <p className="text-[11px] text-[#DDD7FE]">In your wallet</p>
+            <p className="mt-1 flex items-center gap-2 text-sm tabular-nums text-white">
+              <TokenLogo token={asset} size={18} />
+              {walletAmount == null ? '…' : `${formatHouseBalance(walletAmount)} ${asset}`}
+            </p>
+            <p className="mt-0.5 text-[11px] text-[#DDD7FE]/50">On Monad · deposit it to play</p>
           </div>
           <div className="mx-2 mb-1 grid grid-cols-2 gap-1 rounded-xl bg-black p-1">
             {(['AUSD', 'MON'] as const).map((choice) => (
@@ -121,12 +149,43 @@ export const WalletConnect: React.FC = () => {
                 key={choice}
                 type="button"
                 onClick={() => setSelectedCurrency(choice)}
-                className={`h-8 rounded-lg text-xs ${asset === choice ? 'bg-[#7005FC] text-white' : 'text-[#DDD7FE] hover:bg-white/5'}`}
+                className={`flex h-8 items-center justify-center gap-1.5 rounded-lg text-xs ${asset === choice ? 'bg-[#7005FC] text-white' : 'text-[#DDD7FE] hover:bg-white/5'}`}
               >
+                <TokenLogo token={choice} size={14} />
                 {choice}
               </button>
             ))}
           </div>
+          {accountType !== 'demo' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                void import('@/lib/ui/depositPrompt').then(({ requestDeposit }) => requestDeposit());
+                if (pathname !== '/trade') router.push('/trade');
+              }}
+              className="mt-1 flex h-10 w-full items-center rounded-xl px-3 text-left text-sm text-white hover:bg-white/5"
+            >
+              Deposit {asset}
+            </button>
+          ) : null}
+          {accountType !== 'demo' ? (
+            <button
+              type="button"
+              disabled={houseAmount <= 0}
+              onClick={() => {
+                setOpen(false);
+                void import('@/lib/ui/depositPrompt').then(({ requestWithdraw }) => requestWithdraw());
+                if (pathname !== '/trade') router.push('/trade');
+              }}
+              className="group flex w-full flex-col items-start justify-center rounded-xl px-3 py-2 text-left hover:bg-white/5 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            >
+              <span className="whitespace-nowrap text-sm text-white group-disabled:text-white/40">Withdraw {asset}</span>
+              {houseAmount <= 0 ? (
+                <span className="mt-0.5 whitespace-nowrap text-[11px] text-[#DDD7FE]/45">Deposit first to have a balance</span>
+              ) : null}
+            </button>
+          ) : null}
           <Link href="/profile" onClick={() => setOpen(false)} className="mt-1 flex h-10 items-center rounded-xl px-3 text-sm text-white hover:bg-white/5">
             Profile
           </Link>

@@ -66,9 +66,14 @@ export const WalletConnectModal: React.FC = () => {
             className="relative w-full max-w-[22rem] rounded-2xl border border-white/10 bg-[#15111B] p-6 shadow-[0_24px_80px_rgba(7,0,16,0.65)]"
           >
             <div className="flex items-center justify-between gap-4">
-              <h2 id="session-title" className="text-lg font-medium tracking-[-0.02em] text-[#FCFBFF]">
-                {phase === 'locked' ? 'Session ended' : 'Your account'}
-              </h2>
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/5 ring-1 ring-white/10">
+                  <img src="/logos/sponsors/mera.svg" alt="" className="h-5 w-5" />
+                </span>
+                <h2 id="session-title" className="text-lg font-medium tracking-[-0.02em] text-[#FCFBFF]">
+                  {phase === 'locked' ? 'Welcome back' : 'Your account'}
+                </h2>
+              </div>
               <button
                 type="button"
                 aria-label="Close"
@@ -78,8 +83,10 @@ export const WalletConnectModal: React.FC = () => {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-3 text-sm leading-6 text-[#E4E4E4]">
-              One passkey. No seed phrase and no extension. Rounds stay prompt-free for 15 minutes. A deposit or withdrawal asks again.
+            <p className="mt-4 text-sm leading-6 text-[#E4E4E4]">
+              {phase === 'locked'
+                ? 'The 15-minute passkey session ended. Confirm the passkey to keep trading. Your house balance and rounds are where you left them.'
+                : 'One passkey. No seed phrase and no extension. Rounds stay prompt-free for 15 minutes. A deposit or withdrawal asks again.'}
             </p>
             <div className="mt-6 space-y-2">
               <button
@@ -100,6 +107,11 @@ export const WalletConnectModal: React.FC = () => {
                   {busy === 'create' ? 'Waiting for the passkey…' : 'Create a passkey'}
                 </button>
               ) : null}
+              <div className="flex items-center gap-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white/35" aria-hidden>
+                <span className="h-px flex-1 bg-white/10" />
+                or
+                <span className="h-px flex-1 bg-white/10" />
+              </div>
               <button
                 type="button"
                 disabled={busy !== null}

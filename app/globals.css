@@ -70,6 +70,54 @@ body {
   background: #7D1CFC;
 }
 
+.monblip-shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: 0 10px 30px -12px rgba(112, 5, 252, 0.85);
+  transition: transform 160ms ease, box-shadow 200ms ease, background-color 200ms ease;
+}
+
+.monblip-shine:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px -12px rgba(143, 59, 255, 0.95);
+}
+
+.monblip-shine:not(:disabled):active {
+  transform: translateY(0) scale(0.99);
+}
+
+.monblip-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.26) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: monblip-shine 3.6s ease-in-out infinite;
+}
+
+.monblip-shine:disabled {
+  box-shadow: none;
+}
+
+.monblip-shine:disabled::after {
+  animation: none;
+  opacity: 0;
+}
+
+@keyframes monblip-shine {
+  0%, 60% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .monblip-shine::after {
+    animation: none;
+  }
+}
+
 .ghost-btn {
   display: inline-flex;
   align-items: center;
@@ -169,7 +217,9 @@ input[type="reset"]:disabled {
   .ticker-track,
   .monblip-result-card,
   .monblip-result-wash,
-  .monblip-cell-win {
+  .monblip-cell-win,
+  .monblip-flow-x,
+  .monblip-flow-y {
     animation: none;
   }
 }
@@ -393,6 +443,43 @@ html[data-theme="light"] .theme-burger span {
 .monblip-result-wash {
   animation: monblip-result-wash 2.6s ease-out both;
   will-change: opacity;
+}
+
+@keyframes monblip-drain {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@keyframes monblip-flow-x {
+  0% { left: 0%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+@keyframes monblip-flow-y {
+  0% { top: 0%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.monblip-flow-x {
+  animation: monblip-flow-x 1.8s ease-in-out infinite;
+}
+
+.monblip-flow-y {
+  animation: monblip-flow-y 1.8s ease-in-out infinite;
+}
+
+.monblip-drain {
+  transform-origin: left;
+  animation: monblip-drain 8s linear forwards;
+}
+
+.group:hover .monblip-drain,
+.group:focus-within .monblip-drain {
+  animation-play-state: paused;
 }
 
 .monblip-cell-win {

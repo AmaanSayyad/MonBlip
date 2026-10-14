@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+/** Perpl answers 451 to US egress, so its calls leave from Mumbai. */
+export const preferredRegion = 'bom1';
+
 const PERPL = 'https://app.perpl.xyz/api';
 const ALLOWED = new Set([
   '/v1/api-key/payload',
@@ -7,6 +10,10 @@ const ALLOWED = new Set([
   '/v1/trading/wallet',
   '/v1/trading/orders',
   '/v1/trading/fills',
+  '/v1/trading/order-history',
+  '/v1/trading/positions',
+  '/v1/trading/position-history',
+  '/v1/trading/account-history',
   '/v1/pub/context',
 ]);
 

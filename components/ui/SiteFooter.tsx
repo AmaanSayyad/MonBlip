@@ -145,11 +145,11 @@ export function SiteFooter() {
           <Col title="Community" links={COMMUNITY} />
         </div>
 
-        <div className="max-w-4xl space-y-3 border-t border-[#FFFFFF]/20 pt-8 text-[12px] leading-relaxed text-white/75">
+        <div className="space-y-3 border-t border-[#FFFFFF]/20 pt-8 text-[12px] leading-relaxed text-white/75">
           <p>
             MonBlip.fun is a short-chart desk for crypto, stocks, metals, and FX. Rounds run from 5 seconds to 1 minute and settle from the house balance.
           </p>
-          <p>
+          <p className="xl:whitespace-nowrap">
             Crypto and tokenized assets involve significant risk and can result in loss of capital. Nothing on this site is financial advice. House balances settle in AUSD or MON on Monad.
           </p>
           <p className="pt-1 text-white/55">© {new Date().getFullYear()} MonBlip.fun</p>

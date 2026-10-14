@@ -10,6 +10,7 @@ import { BalanceDisplay } from '@/components/balance';
 import { startPriceFeed } from '@/lib/store/gameSlice';
 import { blitzTokenForUsd, blitzTreasury, formatBlitzToken } from '@/lib/fees/blitzEntry';
 import { useToast } from '@/lib/hooks/useToast';
+import { OPEN_DEPOSIT_EVENT, OPEN_WITHDRAW_EVENT, hasPendingDeposit, hasPendingWithdraw } from '@/lib/ui/depositPrompt';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, ShieldCheck, Loader2, Wallet } from 'lucide-react';
 import posthog from 'posthog-js';
@@ -22,7 +23,6 @@ export const GameBoard: React.FC = () => {
     network,
     walletBalance,
     houseBalance,
-    accountType,
     bets,
     gameMode,
     setGameMode,
@@ -86,6 +86,19 @@ export const GameBoard: React.FC = () => {
   useEffect(() => {
     if (isTourOpen) setIsPanelOpen(true);
   }, [isTourOpen]);
+  useEffect(() => {
+    const open = () => {
+      setIsPanelOpen(true);
+      setActiveTab('wallet');
+    };
+    if (hasPendingDeposit() || hasPendingWithdraw()) open();
+    window.addEventListener(OPEN_DEPOSIT_EVENT, open);
+    window.addEventListener(OPEN_WITHDRAW_EVENT, open);
+    return () => {
+      window.removeEventListener(OPEN_DEPOSIT_EVENT, open);
+      window.removeEventListener(OPEN_WITHDRAW_EVENT, open);
+    };
+  }, [setActiveTab]);
 
   const [blitzCountdown, setBlitzCountdown] = useState<string>('');
   const [blitzTimeRemaining, setBlitzTimeRemaining] = useState<string>('');
@@ -100,6 +113,12 @@ export const GameBoard: React.FC = () => {
     if (!isConnected || !address || !network) return;
     void refreshWalletBalance();
   }, [selectedCurrency, isConnected, address, network, refreshWalletBalance]);
+
+  useEffect(() => {
+    if (!isConnected || !address || !network || activeTab !== 'wallet') return;
+    const timer = window.setInterval(() => void refreshWalletBalance(), 12_000);
+    return () => window.clearInterval(timer);
+  }, [isConnected, address, network, activeTab, refreshWalletBalance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -356,10 +375,6 @@ export const GameBoard: React.FC = () => {
   const formatAddress = (addr: string) => {
     if (!addr || addr.length <= 10) return addr || '---';
     return `${addr.slice(0, 5)}...${addr.slice(-4)}`;
-  };
-
-  const formatBalance = (bal: number) => {
-    return isNaN(bal) ? '0.0000' : bal.toFixed(4);
   };
 
   return (
@@ -676,40 +691,7 @@ export const GameBoard: React.FC = () => {
                   </div>
                   {isWalletConnected && address ? (
                     <>
-                      {accountType !== 'demo' && (houseBalance || 0) <= 0 && (
-                        <div className="rounded-2xl border border-[#7005FC]/30 bg-[#7005FC]/10 px-3 py-3">
-                          <p className="text-sm text-white">Deposit {currencySymbol} to play</p>
-                          <p className="mt-1 text-xs leading-5 text-[#c8c2b8]">
-                            Add it to your house balance. Each round is paid from there.
-                          </p>
-                        </div>
-                      )}
-                      <BalanceDisplay />
-
-                      <div className="rounded-2xl border border-[#2a2a2a] bg-[#141414] px-3 py-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-xs text-[#DDD7FE]">Connected wallet</p>
-                            <p className="mt-1 truncate font-mono text-sm text-white">{formatAddress(address)}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(address);
-                              toast.success('Address copied');
-                            }}
-                            className="shrink-0 rounded-full border border-[#2a2a2a] px-3 py-1.5 text-xs text-white transition hover:border-[#7005FC]"
-                          >
-                            Copy
-                          </button>
-                        </div>
-                        <p className="mt-3 border-t border-[#232323] pt-3 text-sm text-[#DDD7FE]">
-                          In this wallet
-                          <span className="ml-2 font-medium tabular-nums text-white">
-                            {isLoadingBalance ? '…' : formatBalance(activeWalletBalance)} {currencySymbol}
-                          </span>
-                        </p>
-                      </div>
+                      <BalanceDisplay wallet={{ balance: activeWalletBalance, loading: isLoadingBalance }} />
 
                       <button
                         type="button"
@@ -719,7 +701,7 @@ export const GameBoard: React.FC = () => {
                           s.setPreferredNetwork(null);
                           s.disconnect();
                         }}
-                        className="h-10 w-full rounded-full text-sm text-[#DDD7FE] transition hover:text-white"
+                        className="h-9 w-full rounded-full text-xs text-white/50 transition hover:bg-white/5 hover:text-white"
                       >
                         Disconnect
                       </button>
@@ -820,7 +802,7 @@ export const GameBoard: React.FC = () => {
                 onClick={() => setConnectModalOpen(true)}
                 className="neon-btn h-10 w-full text-sm"
               >
-                Continue
+                Connect
               </button>
             ) : isUnauthorized ? (
               <p className="text-center text-sm text-[#DDD7FE]">

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope, Roboto_Mono } from "next/font/google";
+import { Manrope, Roboto_Mono, Unbounded } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
@@ -14,6 +14,12 @@ const inter = Manrope({
 const robotoMono = Roboto_Mono({
   variable: "--font-roboto",
   subsets: ["latin"],
+});
+
+const display = Unbounded({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["700"],
 });
 
 const configuredSite = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '') || '';
@@ -76,7 +82,7 @@ export default function RootLayout({
       </head>
       <body
         suppressHydrationWarning
-        className={`${inter.variable} ${robotoMono.variable} antialiased h-dvh overflow-hidden flex flex-col`}
+        className={`${inter.variable} ${robotoMono.variable} ${display.variable} antialiased h-dvh overflow-hidden flex flex-col`}
       >
         <PostHogProvider>
           <Providers>

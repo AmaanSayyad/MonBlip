@@ -65,7 +65,7 @@ export default function HomePage() {
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-40 bg-gradient-to-b from-[#070010] to-transparent" />
         <div className="relative z-10 flex flex-1 flex-col items-center justify-start px-5 pb-16 pt-[16vh] text-center">
           <h1 className="rh-display mb-6 max-w-4xl text-[clamp(3.5rem,9vw,6.25rem)] tracking-[-0.045em] text-[#FCFBFF]">
-            MonBlip
+            MonBlip.fun
           </h1>
           <p className="max-w-2xl text-[1.125rem] font-normal leading-[1.45] text-[#E4E4E4] sm:text-[1.35rem]">
             Short charts across crypto, stocks, metals, commodities and FX.

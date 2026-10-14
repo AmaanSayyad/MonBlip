@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { line, curveMonotoneX } from 'd3-shape';
 import { useStore } from '@/lib/store';
@@ -9,6 +9,8 @@ import { AssetType } from '@/lib/utils/priceFeed';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playWinSound, playLoseSound } from '@/lib/utils/sounds';
 import { useToast } from '@/lib/hooks/useToast';
+import { ASSET_CATEGORIES, ASSET_CONFIG, searchAssets } from '@/lib/assets/catalog';
+import { AssetIcon } from '@/components/ui/AssetIcon';
 
 interface LiveChartProps {
   betAmount: string;
@@ -30,134 +32,6 @@ interface CellBet {
   multiplier: number;
   direction: 'UP' | 'DOWN';
 }
-
-// Component to safely display asset logos with fallback
-const ASSET_CONFIG: Record<AssetType, { name: string; symbol: string; pair: string; logo: string; category: 'Crypto' | 'Metals' | 'Forex' | 'Stocks' | 'Commodities'; decimals: number }> = {
-  BTC: { name: 'Bitcoin', symbol: 'BTC', pair: 'BTC/USD', logo: '/logos/bitcoin-btc-logo.png', category: 'Crypto', decimals: 2 },
-  ETH: { name: 'Ethereum', symbol: 'ETH', pair: 'ETH/USD', logo: '/logos/ethereum-eth-logo.png', category: 'Crypto', decimals: 2 },
-  SOL: { name: 'Solana', symbol: 'SOL', pair: 'SOL/USD', logo: '/logos/solana-sol-logo.png', category: 'Crypto', decimals: 2 },
-  SUI: { name: 'Sui', symbol: 'SUI', pair: 'SUI/USD', logo: '/logos/sui-logo.png', category: 'Crypto', decimals: 3 },
-  TRX: { name: 'Tron', symbol: 'TRX', pair: 'TRX/USD', logo: '/logos/tron-trx-logo.png', category: 'Crypto', decimals: 4 },
-  XRP: { name: 'Ripple', symbol: 'XRP', pair: 'XRP/USD', logo: '/logos/xrp-xrp-logo.png', category: 'Crypto', decimals: 4 },
-  DOGE: { name: 'Dogecoin', symbol: 'DOGE', pair: 'DOGE/USD', logo: '/logos/dogecoin-doge-logo.png', category: 'Crypto', decimals: 5 },
-  ADA: { name: 'Cardano', symbol: 'ADA', pair: 'ADA/USD', logo: '/logos/cardano-ada-logo.png', category: 'Crypto', decimals: 4 },
-  BCH: { name: 'Bitcoin Cash', symbol: 'BCH', pair: 'BCH/USD', logo: '/logos/bitcoin-cash-bch-logo.png', category: 'Crypto', decimals: 2 },
-  BNB: { name: 'Binance Coin', symbol: 'BNB', pair: 'BNB/USD', logo: '/logos/bnb-bnb-logo.png', category: 'Crypto', decimals: 2 },
-  XLM: { name: 'Stellar', symbol: 'XLM', pair: 'XLM/USD', logo: '/logos/stellar-xlm-logo.png', category: 'Crypto', decimals: 4 },
-  XTZ: { name: 'Tezos', symbol: 'XTZ', pair: 'XTZ/USD', logo: '/logos/tezos-xtz-logo.png', category: 'Crypto', decimals: 3 },
-  NEAR: { name: 'Near Protocol', symbol: 'NEAR', pair: 'NEAR/USD', logo: '/logos/near.png', category: 'Crypto', decimals: 3 },
-  APT: { name: 'Aptos', symbol: 'APT', pair: 'APT/USD', logo: '/logos/aptos-logo.png', category: 'Crypto', decimals: 2 },
-  
-  // Metals
-  GOLD: { name: 'Gold', symbol: 'GOLD', pair: 'XAU/USD', logo: '/logos/gold.jpg', category: 'Metals', decimals: 2 },
-  SILVER: { name: 'Silver', symbol: 'SILVER', pair: 'XAG/USD', logo: '/logos/silver.avif', category: 'Metals', decimals: 3 },
-  
-  // Forex
-  EUR: { name: 'Euro', symbol: 'EUR', pair: 'EUR/USD', logo: '/logos/euro.png', category: 'Forex', decimals: 4 },
-  GBP: { name: 'British Pound', symbol: 'GBP', pair: 'GBP/USD', logo: '/logos/uk.png', category: 'Forex', decimals: 4 },
-  JPY: { name: 'Japanese Yen', symbol: 'JPY', pair: 'USD/JPY', logo: '/logos/japan.jpg', category: 'Forex', decimals: 3 },
-  AUD: { name: 'Australian Dollar', symbol: 'AUD', pair: 'AUD/USD', logo: '/logos/australia.png', category: 'Forex', decimals: 4 },
-  CAD: { name: 'Canadian Dollar', symbol: 'CAD', pair: 'USD/CAD', logo: '/logos/canada.png', category: 'Forex', decimals: 4 },
-  
-  // Stocks
-  AAPL: { name: 'Apple Inc.', symbol: 'AAPL', pair: 'AAPL/USD', logo: '/logos/stock-AAPL-logo.png', category: 'Stocks', decimals: 2 },
-  GOOGL: { name: 'Alphabet Inc.', symbol: 'GOOGL', pair: 'GOOGL/USD', logo: '/logos/stock-GOOGL-logo.png', category: 'Stocks', decimals: 2 },
-  AMZN: { name: 'Amazon.com', symbol: 'AMZN', pair: 'AMZN/USD', logo: '/logos/stock-AMZN-logo.png', category: 'Stocks', decimals: 2 },
-  MSFT: { name: 'Microsoft', symbol: 'MSFT', pair: 'MSFT/USD', logo: '/logos/stock-MSFT-logo.png', category: 'Stocks', decimals: 2 },
-  NVDA: { name: 'NVIDIA', symbol: 'NVDA', pair: 'NVDA/USD', logo: '/logos/stock-NVDA-logo.png', category: 'Stocks', decimals: 2 },
-  TSLA: { name: 'Tesla Inc.', symbol: 'TSLA', pair: 'TSLA/USD', logo: '/logos/stock-TSLA-logo.png', category: 'Stocks', decimals: 2 },
-  META: { name: 'Meta Platforms', symbol: 'META', pair: 'META/USD', logo: '/logos/stock-META-logo.png', category: 'Stocks', decimals: 2 },
-  NFLX: { name: 'Netflix', symbol: 'NFLX', pair: 'NFLX/USD', logo: '/logos/stock-NFLX-logo.png', category: 'Stocks', decimals: 2 },
-  AMD: { name: 'AMD', symbol: 'AMD', pair: 'AMD/USD', logo: '/logos/stock-AMD-logo.png', category: 'Stocks', decimals: 2 },
-  BABA: { name: 'Alibaba', symbol: 'BABA', pair: 'BABA/USD', logo: '/logos/stock-BABA-logo.png', category: 'Stocks', decimals: 2 },
-  DIS: { name: 'Walt Disney', symbol: 'DIS', pair: 'DIS/USD', logo: '/logos/stock-DIS-logo.png', category: 'Stocks', decimals: 2 },
-  JPM: { name: 'JP Morgan', symbol: 'JPM', pair: 'JPM/USD', logo: '/logos/stock-JPM-logo.png', category: 'Stocks', decimals: 2 },
-  V: { name: 'Visa Inc.', symbol: 'V', pair: 'V/USD', logo: '/logos/stock-V-logo.png', category: 'Stocks', decimals: 2 },
-  MA: { name: 'Mastercard', symbol: 'MA', pair: 'MA/USD', logo: '/logos/stock-MA-logo.png', category: 'Stocks', decimals: 2 },
-  PYPL: { name: 'PayPal', symbol: 'PYPL', pair: 'PYPL/USD', logo: '/logos/stock-PYPL-logo.png', category: 'Stocks', decimals: 2 },
-  COIN: { name: 'Coinbase', symbol: 'COIN', pair: 'COIN/USD', logo: '/logos/stock-COIN-logo.png', category: 'Stocks', decimals: 2 },
-  MSTR: { name: 'MicroStrategy', symbol: 'MSTR', pair: 'MSTR/USD', logo: '/logos/stock-MSTR-logo.png', category: 'Stocks', decimals: 2 },
-  UBER: { name: 'Uber Tech', symbol: 'UBER', pair: 'UBER/USD', logo: '/logos/stock-UBER-logo.png', category: 'Stocks', decimals: 2 },
-  PLTR: { name: 'Palantir', symbol: 'PLTR', pair: 'PLTR/USD', logo: '/logos/stock-PLTR-logo.png', category: 'Stocks', decimals: 2 },
-  CRM: { name: 'Salesforce', symbol: 'CRM', pair: 'CRM/USD', logo: '/logos/stock-CRM-logo.png', category: 'Stocks', decimals: 2 },
-  INTC: { name: 'Intel', symbol: 'INTC', pair: 'INTC/USD', logo: '/logos/stock-INTC-logo.png', category: 'Stocks', decimals: 2 },
-  TSM: { name: 'TSMC', symbol: 'TSM', pair: 'TSM/USD', logo: '/logos/stock-TSM-logo.png', category: 'Stocks', decimals: 2 },
-  SPX: { name: 'S&P 500', symbol: 'SPX', pair: 'SPX/USD', logo: '/logos/stock-SPX-logo.png', category: 'Stocks', decimals: 2 },
-  NDX: { name: 'Nasdaq 100', symbol: 'NDX', pair: 'NDX/USD', logo: '/logos/stock-NDX-logo.png', category: 'Stocks', decimals: 2 },
-  DJI: { name: 'Dow Jones', symbol: 'DJI', pair: 'DJI/USD', logo: '/logos/stock-DJI-logo.png', category: 'Stocks', decimals: 2 },
-  
-  // Custom
-  // Added Assets — all using local files, no external CDN dependencies
-  LINK: { name: 'Chainlink', symbol: 'LINK', pair: 'LINK/USD', logo: '/logos/chainlink-link-logo.png', category: 'Crypto', decimals: 3 },
-  AVAX: { name: 'Avalanche', symbol: 'AVAX', pair: 'AVAX/USD', logo: '/logos/avalanche-avax-logo.png', category: 'Crypto', decimals: 2 },
-  DOT: { name: 'Polkadot', symbol: 'DOT', pair: 'DOT/USD', logo: '/logos/polkadot-dot-logo.png', category: 'Crypto', decimals: 2 },
-  LTC: { name: 'Litecoin', symbol: 'LTC', pair: 'LTC/USD', logo: '/logos/litecoin-ltc-logo.png', category: 'Crypto', decimals: 2 },
-  UNI: { name: 'Uniswap', symbol: 'UNI', pair: 'UNI/USD', logo: '/logos/uniswap-uni-logo.png', category: 'Crypto', decimals: 2 },
-  PEPE: { name: 'Pepe', symbol: 'PEPE', pair: 'PEPE/USD', logo: '/logos/pepe-logo.png', category: 'Crypto', decimals: 8 },
-  SHIB: { name: 'Shiba Inu', symbol: 'SHIB', pair: 'SHIB/USD', logo: '/logos/shiba-inu-shib-logo.png', category: 'Crypto', decimals: 8 },
-  ATOM: { name: 'Cosmos', symbol: 'ATOM', pair: 'ATOM/USD', logo: '/logos/cosmos-atom-logo.png', category: 'Crypto', decimals: 2 },
-  RENDER: { name: 'Render', symbol: 'RENDER', pair: 'RENDER/USD', logo: '/logos/render-rndr-logo.png', category: 'Crypto', decimals: 2 },
-  TAO: { name: 'Bittensor', symbol: 'TAO', pair: 'TAO/USD', logo: '/logos/bittensor-tao-logo.png', category: 'Crypto', decimals: 2 },
-  INJ: { name: 'Injective', symbol: 'INJ', pair: 'INJ/USD', logo: '/logos/injective-inj-logo.png', category: 'Crypto', decimals: 2 },
-  KAS: { name: 'Kaspa', symbol: 'KAS', pair: 'KAS/USD', logo: '/logos/kaspa-kas-logo.png', category: 'Crypto', decimals: 4 },
-  FET: { name: 'Fetch.ai', symbol: 'FET', pair: 'FET/USD', logo: '/logos/artificial-superintelligence-alliance-fet-logo.png', category: 'Crypto', decimals: 3 },
-  FIL: { name: 'Filecoin', symbol: 'FIL', pair: 'FIL/USD', logo: '/logos/filecoin-fil-logo.png', category: 'Crypto', decimals: 2 },
-  AR: { name: 'Arweave', symbol: 'AR', pair: 'AR/USD', logo: '/logos/arweave-ar-logo.png', category: 'Crypto', decimals: 2 },
-  STX: { name: 'Stacks', symbol: 'STX', pair: 'STX/USD', logo: '/logos/stacks-stx-logo.png', category: 'Crypto', decimals: 2 },
-  HBAR: { name: 'Hedera', symbol: 'HBAR', pair: 'HBAR/USD', logo: '/logos/hedera-hbar-logo.png', category: 'Crypto', decimals: 4 },
-  ICP: { name: 'Internet Computer', symbol: 'ICP', pair: 'ICP/USD', logo: '/logos/internet-computer-icp-logo.png', category: 'Crypto', decimals: 2 },
-  VET: { name: 'VeChain', symbol: 'VET', pair: 'VET/USD', logo: '/logos/vechain-vet-logo.png', category: 'Crypto', decimals: 4 },
-  OP: { name: 'Optimism', symbol: 'OP', pair: 'OP/USD', logo: '/logos/optimism-ethereum-op-logo.png', category: 'Crypto', decimals: 3 },
-  BONK: { name: 'Bonk', symbol: 'BONK', pair: 'BONK/USD', logo: '/logos/bonk-logo.png', category: 'Crypto', decimals: 8 },
-  ARB: { name: 'Arbitrum', symbol: 'ARB', pair: 'ARB/USD', logo: '/logos/arbitrum-arb-logo.png', category: 'Crypto', decimals: 3 },
-  SNX: { name: 'Synthetix', symbol: 'SNX', pair: 'SNX/USD', logo: '/logos/synthetix-snx-logo.png', category: 'Crypto', decimals: 2 },
-  AAVE: { name: 'Aave', symbol: 'AAVE', pair: 'AAVE/USD', logo: '/logos/aave-logo.png', category: 'Crypto', decimals: 2 },
-  GRT: { name: 'The Graph', symbol: 'GRT', pair: 'GRT/USD', logo: '/logos/the-graph-grt-logo.png', category: 'Crypto', decimals: 4 },
-  THETA: { name: 'Theta Network', symbol: 'THETA', pair: 'THETA/USD', logo: '/logos/theta-network-theta-logo.png', category: 'Crypto', decimals: 3 },
-  ALGO: { name: 'Algorand', symbol: 'ALGO', pair: 'ALGO/USD', logo: '/logos/algorand-algo-logo.png', category: 'Crypto', decimals: 4 },
-  EGLD: { name: 'MultiversX', symbol: 'EGLD', pair: 'EGLD/USD', logo: '/logos/multiversx-egld-egld-logo.png', category: 'Crypto', decimals: 2 },
-  FLOW: { name: 'Flow', symbol: 'FLOW', pair: 'FLOW/USD', logo: '/logos/flow-logo.png', category: 'Crypto', decimals: 3 },
-  
-  // Commodities
-  WTI: { name: 'Crude Oil WTI', symbol: 'WTI', pair: 'WTI/USD', logo: '/logos/oil.svg', category: 'Commodities', decimals: 2 },
-  BRENT: { name: 'Crude Oil Brent', symbol: 'BRENT', pair: 'BRENT/USD', logo: '/logos/oil.svg', category: 'Commodities', decimals: 2 },
-};
-
-
-// Logos ship with the app. Remote logo hosts are slow and were blocking the mark.
-const AssetIcon = React.memo(function AssetIcon({
-  src,
-  asset,
-  className = 'h-full w-full object-contain',
-}: {
-  src: string;
-  asset: string;
-  className?: string;
-}) {
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [src, asset]);
-
-  if (failed || !src) {
-    return (
-      <span className="flex h-full w-full items-center justify-center text-[11px] font-medium text-[#DDD7FE]">
-        {asset.slice(0, 3)}
-      </span>
-    );
-  }
-
-  return (
-    <img
-      src={src}
-      alt=""
-      decoding="async"
-      className={className}
-      onError={() => setFailed(true)}
-    />
-  );
-});
 
 export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount }) => {
   const priceHistory = useStore((state) => state.priceHistory);
@@ -187,7 +61,11 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
   const linePathsRef = useRef<Array<SVGPathElement | null>>([]);
   const tipRef = useRef<SVGCircleElement>(null);
   const priceLineRef = useRef<SVGLineElement>(null);
+  const bgGridRef = useRef<HTMLDivElement>(null);
   const gridMotionRef = useRef({ pps: 0, tipX: 0, anchor: 0 });
+  // Clock that the last committed render used for xScale. Paths built from it
+  // are slid left by the time elapsed since, so they move every frame.
+  const renderedNowRef = useRef(0);
   const lineMotionRef = useRef<{
     pps: number;
     tipX: number;
@@ -236,7 +114,46 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
   const [pendingBox, setPendingBox] = useState<PendingDrawBox | null>(null);
 
   // Warning state for insufficient funds
-  const [showInsufficientFunds, setShowInsufficientFunds] = useState(false);
+  // The card stays mounted after the first shortfall so closing is a CSS fade with no unmount.
+  const [shortfall, setShortfall] = useState<{ need: number; have: number; at: number } | null>(null);
+  const [shortfallOpen, setShortfallOpen] = useState(false);
+  const closeShortfall = useCallback(() => setShortfallOpen(false), []);
+  // Auto-hide clock. Hover or focus holds it; matches the 8s drain bar in globals.css.
+  const shortfallClock = useRef({ timer: 0, deadline: 0, remaining: 8000, hover: false, focus: false });
+  const runShortfallClock = useCallback(() => {
+    const clock = shortfallClock.current;
+    window.clearTimeout(clock.timer);
+    if (clock.hover || clock.focus) return;
+    clock.deadline = Date.now() + clock.remaining;
+    clock.timer = window.setTimeout(() => setShortfallOpen(false), clock.remaining);
+  }, []);
+  const holdShortfall = useCallback((key: 'hover' | 'focus', on: boolean) => {
+    const clock = shortfallClock.current;
+    const wasHeld = clock.hover || clock.focus;
+    clock[key] = on;
+    const held = clock.hover || clock.focus;
+    if (!wasHeld && held) {
+      window.clearTimeout(clock.timer);
+      clock.remaining = Math.max(0, clock.deadline - Date.now());
+    } else if (wasHeld && !held) {
+      runShortfallClock();
+    }
+  }, [runShortfallClock]);
+  const flagShortfall = useCallback((need: number, have: number) => {
+    setShortfall({ need, have, at: Date.now() });
+    setShortfallOpen(true);
+    Object.assign(shortfallClock.current, { remaining: 8000, hover: false, focus: false });
+    runShortfallClock();
+  }, [runShortfallClock]);
+  useEffect(() => () => window.clearTimeout(shortfallClock.current.timer), []);
+  useEffect(() => {
+    if (!shortfallOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeShortfall();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [shortfallOpen, closeShortfall]);
 
   // Asset search and category filtering
   const [assetSearchQuery, setAssetSearchQuery] = useState('');
@@ -260,6 +177,27 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
   const isIndicatorsOpen = useStore((state) => state.isIndicatorsOpen);
   const setIsIndicatorsOpen = useStore((state) => state.setIsIndicatorsOpen);
   const toggleIndicator = useStore((state) => state.toggleIndicator);
+  const isTourOpen = useStore((state) => state.isTourOpen);
+  const indicatorsPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isIndicatorsOpen || isTourOpen) return;
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (indicatorsPanelRef.current?.contains(target as Node)) return;
+      if (target?.closest('[data-tour="indicators-trigger"]')) return;
+      setIsIndicatorsOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsIndicatorsOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isIndicatorsOpen, isTourOpen, setIsIndicatorsOpen]);
 
   const currencySymbol = useMemo(() => {
 
@@ -292,18 +230,10 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
     : Math.max(currentAssetConfig.decimals, 7);
 
   // Filtered assets based on search and category
-  const filteredAssets = useMemo(() => {
-    return (Object.keys(ASSET_CONFIG) as AssetType[]).filter(assetId => {
-      const asset = ASSET_CONFIG[assetId];
-      const matchesSearch = asset.name.toLowerCase().includes(assetSearchQuery.toLowerCase()) ||
-        asset.symbol.toLowerCase().includes(assetSearchQuery.toLowerCase()) ||
-        asset.pair.toLowerCase().includes(assetSearchQuery.toLowerCase());
-
-      const matchesCategory = activeAssetCategory === 'All' || asset.category === activeAssetCategory;
-
-      return matchesSearch && matchesCategory;
-    });
-  }, [assetSearchQuery, activeAssetCategory]);
+  const filteredAssets = useMemo(
+    () => searchAssets(assetSearchQuery, activeAssetCategory),
+    [assetSearchQuery, activeAssetCategory],
+  );
 
 
   // Stable Y-Axis Domain
@@ -446,6 +376,51 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
           const gridShift = grid.tipX + ((grid.anchor - nowMs) / 1000) * grid.pps;
           layer.style.transform = `translate3d(${gridShift}px,0,0)`;
         }
+        const bg = bgGridRef.current;
+        if (bg) {
+          const offset = -((((nowMs / 1000) * grid.pps) % 50) + 50) % 50;
+          bg.style.backgroundPosition = `${offset}px 0`;
+        }
+        const root = containerRef.current;
+        if (root) {
+          const xAt = (t: number) => grid.tipX + ((t - nowMs) / 1000) * grid.pps;
+          const shift = renderedNowRef.current > 0
+            ? ((renderedNowRef.current - nowMs) / 1000) * grid.pps
+            : 0;
+          root.querySelectorAll<SVGElement>('[data-tl]').forEach((node) => {
+            const kind = node.dataset.tl;
+            if (kind === 'shift') {
+              node.setAttribute('transform', `translate(${shift},0)`);
+            } else if (kind === 'tick') {
+              node.setAttribute('transform', `translate(${xAt(Number(node.dataset.t))},0)`);
+            } else if (kind === 'classic') {
+              const endX = xAt(Number(node.dataset.end));
+              const ahead = endX > grid.tipX;
+              node.querySelector('[data-part="strike"]')?.setAttribute('x2', String(Math.max(grid.tipX, endX)));
+              const expiry = node.querySelector('[data-part="expiry"]');
+              if (expiry) {
+                expiry.setAttribute('x1', String(endX));
+                expiry.setAttribute('x2', String(endX));
+                expiry.setAttribute('visibility', ahead ? 'visible' : 'hidden');
+              }
+              const zone = node.querySelector('[data-part="zone"]');
+              if (zone) {
+                zone.setAttribute('width', String(Math.max(0, endX - grid.tipX)));
+                zone.setAttribute('visibility', ahead ? 'visible' : 'hidden');
+              }
+            } else if (kind === 'draw') {
+              const startX = Math.max(grid.tipX, xAt(Number(node.dataset.start)));
+              const width = xAt(Number(node.dataset.end)) - startX;
+              node.setAttribute('visibility', width > 0 ? 'visible' : 'hidden');
+              if (width > 0) {
+                const box = node.querySelector('[data-part="box"]');
+                box?.setAttribute('x', String(startX));
+                box?.setAttribute('width', String(width));
+                node.querySelector('[data-part="label"]')?.setAttribute('x', String(startX + 6));
+              }
+            }
+          });
+        }
       }
       if (motion.pps > 0 && motion.price > 0 && motion.points.length > 0) {
         const minT = nowMs - ((motion.tipX + 120) / motion.pps) * 1000;
@@ -558,6 +533,10 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
     points: priceHistory,
     yAt: scales ? scales.yScale : () => 0,
   };
+
+  useLayoutEffect(() => {
+    renderedNowRef.current = now;
+  }, [now]);
 
   const scalesRef = useRef(scales);
   const currentPriceRef = useRef(currentPrice);
@@ -706,8 +685,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
 
     const currentBalance = houseBalance || 0;
     if (currentBalance < requiredAmount) {
-      setShowInsufficientFunds(true);
-      setTimeout(() => setShowInsufficientFunds(false), 2000);
+      flagShortfall(requiredAmount, currentBalance);
       setPendingBox(null);
       return;
     }
@@ -1226,6 +1204,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
 
       {/* Background Grid */}
       <div
+        ref={bgGridRef}
         className="absolute inset-0 opacity-5 pointer-events-none"
         style={{
           backgroundImage: 'linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)',
@@ -1282,8 +1261,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
                 const currentBalance = houseBalance || 0;
 
                 if (currentBalance < requiredAmount) {
-                  setShowInsufficientFunds(true);
-                  setTimeout(() => setShowInsufficientFunds(false), 2000);
+                  flagShortfall(requiredAmount, currentBalance);
                   return;
                 }
 
@@ -1493,8 +1471,9 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
                 const stroke = isWinning ? 'rgba(196,181,255,0.95)' : 'rgba(110,84,255,0.8)';
 
                 return (
-                  <g key={bet.id}>
+                  <g key={bet.id} data-tl="draw" data-start={bet.startTime} data-end={bet.endTime}>
                     <rect
+                      data-part="box"
                       x={clampedStartX}
                       y={tY}
                       width={width}
@@ -1508,6 +1487,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
                       }}
                     />
                     <text
+                      data-part="label"
                       x={clampedStartX + 6}
                       y={tY + 16}
                       fill="rgba(255,255,255,0.85)"
@@ -1540,8 +1520,9 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
           const color = isUp ? '#22c55e' : '#ef4444';
 
           return (
-            <g key={bet.id}>
+            <g key={bet.id} data-tl="classic" data-end={bet.endTime}>
               <line
+                data-part="strike"
                 x1={nowX}
                 y1={strikeY}
                 x2={Math.max(nowX, expirationX)}
@@ -1554,6 +1535,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
 
               {expirationX > nowX && (
                 <line
+                  data-part="expiry"
                   x1={expirationX}
                   y1={0}
                   x2={expirationX}
@@ -1567,6 +1549,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
 
               {expirationX > nowX && (
                 <rect
+                  data-part="zone"
                   x={nowX}
                   y={isUp ? Math.min(strikeY, scales.yScale(currentPrice)) : strikeY}
                   width={expirationX - nowX}
@@ -1607,14 +1590,17 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
                 return (
                   <g key={`y-tick-${tick}`}>
                     <line x1={0} y1={y} x2={dimensions.width} y2={y} stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />
+                    {gameMode === 'box' ? (
+                      <rect x={dimensions.width - 84} y={y - 17} width={80} height={16} rx={8} fill="#070010" fillOpacity="0.85" />
+                    ) : null}
                     <text
-                      x={dimensions.width - 5}
+                      x={dimensions.width - 10}
                       y={y - 5}
                       fill="#94a3b8"
                       fontSize="10"
                       fontFamily="monospace"
                       textAnchor="end"
-                      className="opacity-50"
+                      className={gameMode === 'box' ? 'opacity-90' : 'opacity-50'}
                     >
                       {price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: quoteDecimals })}
                     </text>
@@ -1641,23 +1627,22 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
                 const secondsPast = scales.tipX / pixelsPerSecond;
                 const secondsFuture = (dimensions.width - scales.tipX) / pixelsPerSecond;
 
-                const startSec = Math.floor(-secondsPast / tickInterval) * tickInterval;
-                const endSec = Math.ceil(secondsFuture / tickInterval) * tickInterval;
+                const stepMs = tickInterval * 1000;
+                const firstTs = Math.floor((now - (secondsPast + tickInterval) * 1000) / stepMs) * stepMs;
+                const lastTs = now + (secondsFuture + tickInterval) * 1000;
 
                 const ticks = [];
-                for (let s = startSec; s <= endSec; s += tickInterval) {
-                  ticks.push(s);
+                for (let ts = firstTs; ts <= lastTs; ts += stepMs) {
+                  ticks.push(ts);
                 }
 
-                return ticks.map((sec) => {
-                  const ts = now + sec * 1000;
+                return ticks.map((ts) => {
                   const x = scales.xScale(ts);
-                  if (x < 0 || x > dimensions.width) return null;
                   return (
-                    <g key={`x-tick-${sec}`}>
-                      <line x1={x} y1={0} x2={x} y2={dimensions.height} stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />
+                    <g key={`x-tick-${ts}`} data-tl="tick" data-t={ts} transform={`translate(${x},0)`}>
+                      <line x1={0} y1={0} x2={0} y2={dimensions.height} stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />
                       <text
-                        x={x + 5}
+                        x={5}
                         y={dimensions.height - 10}
                         fill="#94a3b8"
                         fontSize="9"
@@ -1732,6 +1717,13 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
                 {/* TECHNICAL INDICATORS RENDER */}
                 {indicatorPaths && (
                   <g className="indicators-layer">
+                    <defs>
+                      <clipPath id="monblip-indicator-clip">
+                        <rect x={0} y={0} width={Math.max(0, scales.tipX)} height={dimensions.height} />
+                      </clipPath>
+                    </defs>
+                    <g clipPath="url(#monblip-indicator-clip)">
+                    <g data-tl="shift">
                     {/* Moving Average */}
                     {activeIndicators['ma'] && indicatorPaths.ma && (
                       <path
@@ -1780,35 +1772,42 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
                         <path d={(indicatorPaths.alligator as string[])[2]} fill="none" stroke="#16a34a" strokeWidth="2" opacity="0.6" />
                       </g>
                     )}
+                    </g>
+                    </g>
 
-                    {/* RSI Advanced Visualization */}
+                    {/* RSI sits under the history side so the box grid and the bet panel stay clear */}
                     {activeIndicators['rsi'] && indicatorPaths.rsi && (() => {
                       try {
                         const rsiPoints = indicatorPaths.rsi as { timestamp: number; rsi: number }[];
-                        const panelHeight = 100;
-                        const panelY = dimensions.height - panelHeight - 20;
-                        const rsiY = (value: number) => panelHeight - (value / 100) * panelHeight;
+                        const panelHeight = 72;
+                        const panelWidth = Math.max(0, scales.tipX - 8);
+                        const panelY = dimensions.height - panelHeight - 24;
+                        const rsiY = (value: number) => 6 + (panelHeight - 12) * (1 - value / 100);
                         const rsiPath = line<{ timestamp: number; rsi: number }>()
                           .x((d) => scales.xScale(d.timestamp))
                           .y((d) => rsiY(d.rsi))
                           .curve(curveMonotoneX)(rsiPoints) || '';
+                        const latest = rsiPoints[rsiPoints.length - 1]?.rsi;
 
                         return (
                           <g transform={`translate(0, ${panelY})`}>
-                            <rect x={0} y={0} width={dimensions.width} height={panelHeight} fill="#0b0b0b" fillOpacity="0.92" />
-                            <line x1={0} y1={0} x2={dimensions.width} y2={0} stroke="rgba(110,84,255,0.45)" strokeWidth="1" />
-                            <line x1={0} y1={rsiY(70)} x2={dimensions.width} y2={rsiY(70)} stroke="rgba(239, 68, 68, 0.45)" strokeWidth="1" strokeDasharray="4 4" />
-                            <line x1={0} y1={rsiY(50)} x2={dimensions.width} y2={rsiY(50)} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-                            <line x1={0} y1={rsiY(30)} x2={dimensions.width} y2={rsiY(30)} stroke="rgba(34, 197, 94, 0.45)" strokeWidth="1" strokeDasharray="4 4" />
-                            <text x={10} y={rsiY(70) - 4} fill="rgba(239, 68, 68, 0.7)" fontSize="8" fontWeight="bold">70</text>
-                            <text x={10} y={rsiY(30) + 10} fill="rgba(34, 197, 94, 0.7)" fontSize="8" fontWeight="bold">30</text>
-                            <path
-                              d={rsiPath}
-                              fill="none"
-                              stroke="#7005FC"
-                              strokeWidth="2"
-                            />
-                            <text x={dimensions.width - 12} y={14} fill="#7005FC" fontSize="10" fontWeight="bold" textAnchor="end">RSI 14</text>
+                            <defs>
+                              <clipPath id="monblip-rsi-clip">
+                                <rect x={0} y={0} width={panelWidth} height={panelHeight} rx={10} />
+                              </clipPath>
+                            </defs>
+                            <rect x={0} y={0} width={panelWidth} height={panelHeight} rx={10} fill="#0b0716" fillOpacity="0.9" stroke="rgba(112,5,252,0.35)" />
+                            <g clipPath="url(#monblip-rsi-clip)">
+                              <line x1={0} y1={rsiY(70)} x2={panelWidth} y2={rsiY(70)} stroke="rgba(239, 68, 68, 0.45)" strokeWidth="1" strokeDasharray="4 4" />
+                              <line x1={0} y1={rsiY(50)} x2={panelWidth} y2={rsiY(50)} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+                              <line x1={0} y1={rsiY(30)} x2={panelWidth} y2={rsiY(30)} stroke="rgba(34, 197, 94, 0.45)" strokeWidth="1" strokeDasharray="4 4" />
+                              <g data-tl="shift">
+                                <path d={rsiPath} fill="none" stroke="#B781FE" strokeWidth="1.75" />
+                              </g>
+                            </g>
+                            <text x={panelWidth - 10} y={16} fill="#DDD7FE" fontSize="10" fontWeight="600" textAnchor="end">
+                              RSI 14{Number.isFinite(latest) ? ` · ${Math.round(latest)}` : ''}
+                            </text>
                           </g>
                         );
                       } catch (e) { return null; }
@@ -1877,9 +1876,9 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
         )}
 
         {/* Price Display */}
-        <div className="pointer-events-none relative z-10" data-tour="price-display">
-          <p className="w-fit bg-black pr-2 text-xs text-[#DDD7FE]">{currentAssetConfig.pair}</p>
-          <p className="mt-1 w-fit bg-black pr-2 text-2xl font-medium tabular-nums tracking-tight text-white sm:text-3xl">
+        <div className="pointer-events-none relative z-10 -ml-2 w-fit rounded-2xl bg-black/80 px-2 py-1.5 backdrop-blur-sm" data-tour="price-display">
+          <p className="w-fit text-xs text-[#DDD7FE]">{currentAssetConfig.pair}</p>
+          <p className="mt-1 w-fit text-2xl font-medium tabular-nums tracking-tight text-white sm:text-3xl">
             {currentPrice > 0 ? currentPrice.toLocaleString('en-US', {
               style: 'currency',
               currency: 'USD',
@@ -1899,6 +1898,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
         <AnimatePresence>
           {isIndicatorsOpen && (
             <motion.div
+              ref={indicatorsPanelRef}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
@@ -1987,16 +1987,103 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
       </div>
 
 
-      {/* Insufficient Funds Warning - Minimalist Toast */}
-      {showInsufficientFunds && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50">
-          <div className="px-4 py-2 bg-orange-500/20 backdrop-blur-md border border-orange-400/40 rounded-xl">
-            <p className="text-orange-300 text-sm font-medium text-center max-w-[240px]">
-              Not enough house credits — deposit in the Wallet tab first
-            </p>
+      {typeof document !== 'undefined' ? createPortal(
+        shortfall ? (() => {
+          const fmt = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 4 });
+          const gap = Math.max(0, shortfall.need - shortfall.have);
+          const affordable = Math.floor(shortfall.have * 100) / 100;
+          const filled = shortfall.need > 0 ? Math.min(1, shortfall.have / shortfall.need) : 0;
+          return (
+          <div
+            role="alert"
+            aria-hidden={!shortfallOpen}
+            className={`group fixed left-1/2 top-[132px] z-[150] w-[min(90vw,296px)] -translate-x-1/2 transition-[opacity,translate,scale,visibility] duration-200 ease-out starting:-translate-y-3 starting:scale-[0.98] starting:opacity-0 ${
+              shortfallOpen ? 'visible translate-y-0 scale-100 opacity-100' : 'pointer-events-none invisible -translate-y-2 scale-[0.98] opacity-0'
+            }`}
+            onPointerEnter={() => holdShortfall('hover', true)}
+            onPointerLeave={() => holdShortfall('hover', false)}
+            onFocus={() => holdShortfall('focus', true)}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) holdShortfall('focus', false);
+            }}
+          >
+            <div className="relative overflow-hidden rounded-xl border border-[#7005FC]/45 bg-[#15111B]/95 p-3 shadow-[0_12px_32px_rgba(7,0,16,0.65)] backdrop-blur-md">
+              <div className="flex items-center gap-2.5">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#7005FC]/20 text-[#B781FE]">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+                    <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+                  </svg>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#B781FE]">Stake above balance</p>
+                  <p className="truncate text-sm font-semibold leading-5 text-white">
+                    Short by <span className="tabular-nums">{fmt(gap)}</span> {currencySymbol}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  onClick={closeShortfall}
+                  className="-mr-1 -mt-3 grid h-6 w-6 shrink-0 place-items-center self-start rounded-full text-base leading-none text-white/50 transition hover:bg-white/10 hover:text-white"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="mt-2.5">
+                <div className="h-1 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#7005FC] to-[#B781FE]"
+                    style={{ width: `${Math.max(filled * 100, filled > 0 ? 3 : 0)}%` }}
+                  />
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[11px] text-[#DDD7FE]/70">
+                  <span>
+                    Balance <span className="tabular-nums text-white">{fmt(shortfall.have)} {currencySymbol}</span>
+                  </span>
+                  <span>
+                    Stake <span className="tabular-nums text-white">{fmt(shortfall.need)} {currencySymbol}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3 flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeShortfall();
+                    void import('@/lib/ui/depositPrompt').then(({ requestDeposit }) => requestDeposit(gap));
+                  }}
+                  className="h-8 flex-1 rounded-full bg-[#7005FC] text-xs font-medium text-white outline-none transition hover:bg-[#8F3BFF] focus-visible:ring-2 focus-visible:ring-[#B781FE]/70"
+                >
+                  Deposit {currencySymbol}
+                </button>
+                {affordable > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBetAmount(String(affordable));
+                      closeShortfall();
+                    }}
+                    className="h-8 flex-1 rounded-full border border-white/15 px-2 text-xs text-[#DDD7FE] outline-none transition hover:border-[#B781FE]/60 hover:text-white focus-visible:ring-2 focus-visible:ring-[#B781FE]/70"
+                  >
+                    Lower to <span className="tabular-nums">{affordable.toFixed(2)}</span> {currencySymbol}
+                  </button>
+                ) : null}
+              </div>
+
+              <span
+                key={shortfall.at}
+                className="monblip-drain absolute bottom-0 left-0 h-0.5 w-full bg-[#B781FE]/70"
+                aria-hidden
+              />
+            </div>
           </div>
-        </div>
-      )}
+          );
+        })() : null,
+      document.body,
+      ) : null}
 
       <div className="absolute inset-0 z-50 pointer-events-none overflow-hidden">
         {betResults.map((result) => (
@@ -2089,7 +2176,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
             </div>
 
             <div className="mb-3 flex gap-1.5 overflow-x-auto pb-0.5">
-              {(['All', 'Crypto', 'Metals', 'Forex', 'Stocks', 'Commodities'] as const).map((cat) => (
+              {ASSET_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   type="button"

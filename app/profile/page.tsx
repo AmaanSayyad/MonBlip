@@ -28,6 +28,30 @@ type FundingView = {
     rows: Array<{ kind: 'deposit' | 'withdrawal'; asset: 'AUSD' | 'MON'; amount: string; tx: string; block: number }>;
 };
 
+type ProfileCache = { funding?: FundingView; balances?: { AUSD: number; MON: number } };
+
+function profileCacheKey(address: string) {
+    return `monblip.profile.${address.toLowerCase()}`;
+}
+
+function readProfileCache(address: string): ProfileCache | null {
+    try {
+        const raw = sessionStorage.getItem(profileCacheKey(address));
+        return raw ? (JSON.parse(raw) as ProfileCache) : null;
+    } catch {
+        return null;
+    }
+}
+
+function writeProfileCache(address: string, patch: ProfileCache) {
+    try {
+        const next = { ...readProfileCache(address), ...patch };
+        sessionStorage.setItem(profileCacheKey(address), JSON.stringify(next));
+    } catch {
+        // Private mode or a full quota only skips the cache.
+    }
+}
+
 function directionLabel(direction: string | undefined) {
     if (direction === 'UP') return 'Higher';
     if (direction === 'DOWN') return 'Lower';
@@ -94,13 +118,20 @@ export default function ProfilePage() {
         }
         let live = true;
         setFundingError(null);
+        const cached = readProfileCache(address);
+        if (cached?.funding) setFunding(cached.funding);
+        if (cached?.balances) setMonadBalances(cached.balances);
         void fetch(`/api/monad/funding?address=${address}`)
             .then(async (response) => {
                 const body = await response.json();
                 if (!response.ok) throw new Error(body.error || 'Funding history is unavailable');
                 return body as FundingView;
             })
-            .then((body) => { if (live) setFunding(body); })
+            .then((body) => {
+                if (!live) return;
+                setFunding(body);
+                writeProfileCache(address, { funding: body });
+            })
             .catch((error: unknown) => {
                 if (live) setFundingError(error instanceof Error ? error.message : 'Funding history is unavailable');
             });
@@ -128,7 +159,9 @@ export default function ProfilePage() {
             return [currency, response.ok ? Number(body.balance || 0) : 0] as const;
         })).then((pairs) => {
             if (!live) return;
-            setMonadBalances({ AUSD: pairs[0][1], MON: pairs[1][1] });
+            const balances = { AUSD: pairs[0][1], MON: pairs[1][1] };
+            setMonadBalances(balances);
+            writeProfileCache(address, { balances });
         }).catch(() => {
             if (live) setMonadBalances(null);
         });
@@ -226,7 +259,11 @@ export default function ProfilePage() {
                                 {(['AUSD', 'MON'] as const).map((symbol) => (
                                     <div key={symbol}>
                                         <p className="text-[11px] text-[#E4E4E4]">{symbol}</p>
-                                        <p className="mt-1 font-mono text-xl text-white">{monadBalances ? monadBalances[symbol].toFixed(4) : '—'}</p>
+                                        {monadBalances ? (
+                                            <p className="mt-1 font-mono text-xl text-white">{monadBalances[symbol].toFixed(4)}</p>
+                                        ) : (
+                                            <span className="mt-2 block h-6 w-20 animate-pulse rounded-md bg-white/10" aria-label="Loading" />
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -303,7 +340,15 @@ export default function ProfilePage() {
                             )}
                         </>
                     ) : fundingError ? null : (
-                        <p className="mt-4 text-sm text-[#E4E4E4]">Reading Monad transfers.</p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2" aria-label="Reading Monad transfers">
+                            {['In', 'Out'].map((label) => (
+                                <div key={label} className="rounded-xl border border-white/10 bg-[#070010] px-4 py-3">
+                                    <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#B781FE]">{label}</p>
+                                    <span className="mt-3 block h-5 w-28 animate-pulse rounded-md bg-white/10" />
+                                    <span className="mt-2 block h-5 w-24 animate-pulse rounded-md bg-white/10" />
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </section>
 

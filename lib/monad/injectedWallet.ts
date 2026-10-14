@@ -158,6 +158,65 @@ export async function signMetaMaskMessage(message: string): Promise<`0x${string}
   return walletClient(address).signMessage({ account: address, message });
 }
 
+export function hasInjectedWallet() {
+  return typeof window !== 'undefined' && Boolean((window as Window & { ethereum?: EthereumProvider }).ethereum);
+}
+
+const GAS_FLOOR = parseUnits('0.02', 18);
+const GAS_TOP_UP = parseUnits('0.05', 18);
+
+/**
+ * Sends funds from MetaMask to another Monad address, such as a Mera passkey
+ * wallet, without making MetaMask the desk account. An AUSD top-up also sends
+ * a little MON when the recipient cannot pay gas for its own deposit.
+ */
+export async function topUpFromMetaMask(
+  asset: PlayCurrency,
+  amount: number,
+  recipient: Address,
+  onStep?: (step: 'connect' | 'send' | 'gas' | 'confirm') => void,
+): Promise<`0x${string}`> {
+  try {
+    const eth = provider();
+    onStep?.('connect');
+    await ensureMonad(eth);
+    const accounts = (await eth.request({ method: 'eth_requestAccounts' })) as string[];
+    const from = accounts[0] as Address | undefined;
+    if (!from) throw new Error('MetaMask did not return an account.');
+    if (from.toLowerCase() === recipient.toLowerCase()) throw new Error('MetaMask is already this wallet.');
+    const wallet = walletClient(from);
+    const pub = createPublicClient({ chain: monad, transport: http('https://rpc.monad.xyz') });
+    const isMon = playCurrency(asset) === 'MON';
+    const value = parseUnits(amount.toFixed(isMon ? 18 : 6), isMon ? 18 : 6);
+    const held = isMon
+      ? await pub.getBalance({ address: from })
+      : await pub.readContract({ address: MONAD_AUSD, abi: erc20Abi, functionName: 'balanceOf', args: [from] });
+    if (held < value) throw new Error(`MetaMask holds less than ${amount} ${isMon ? 'MON' : 'AUSD'} on Monad.`);
+    onStep?.('send');
+    const hash = isMon
+      ? await wallet.sendTransaction({ account: from, chain: monad, to: recipient, value, gas: 21_000n })
+      : await wallet.writeContract({
+          account: from,
+          chain: monad,
+          address: MONAD_AUSD,
+          abi: erc20Abi,
+          functionName: 'transfer',
+          args: [recipient, value],
+          gas: 80_000n,
+        });
+    onStep?.('confirm');
+    await pub.waitForTransactionReceipt({ hash });
+    if (!isMon && (await pub.getBalance({ address: recipient })) < GAS_FLOOR) {
+      onStep?.('gas');
+      const gasHash = await wallet.sendTransaction({ account: from, chain: monad, to: recipient, value: GAS_TOP_UP, gas: 21_000n });
+      await pub.waitForTransactionReceipt({ hash: gasHash });
+    }
+    return hash;
+  } catch (error) {
+    throw friendly(error);
+  }
+}
+
 export async function depositWithMetaMask(
   asset: PlayCurrency,
   amount: number,

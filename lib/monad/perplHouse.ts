@@ -1,15 +1,16 @@
 import { createHash, generateKeyPairSync, randomBytes, sign as signEd, type KeyObject } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { encodeFunctionData, erc20Abi, formatUnits, hashTypedData, recoverTypedDataAddress } from 'viem';
 import { monad } from 'viem/chains';
 import { MONAD_AUSD } from '@/lib/chains/supported';
 import { dynamicAddress, dynamicWalletClient, signDynamicDigest } from '@/lib/monad/dynamicHedge';
+import { stateFile, writeState } from '@/lib/server/stateFile';
+import { ausd, buildPerplView, PERPL_VIEW_PATHS, type PerplAccountSnapshot, type PerplActivity, type PerplRaw } from '@/lib/monad/perplView';
 
 const PERPL = 'https://app.perpl.xyz/api';
 const EXCHANGE = '0x34B6552d57a35a1D042CcAe1951BD1C370112a6F' as const;
 const CHAIN_ID = 143;
-const keyFile = path.join(process.cwd(), '.dynamic', 'perpl-ed25519.json');
+const keyFile = stateFile('.dynamic', 'perpl-ed25519.json');
 
 const exchangeAbi = [
   {
@@ -18,6 +19,47 @@ const exchangeAbi = [
     stateMutability: 'nonpayable',
     inputs: [{ name: 'amount', type: 'uint256' }],
     outputs: [{ name: 'accountId', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'allowOrderForwarding',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'allow', type: 'bool' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'withdrawCollateral',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'amountCNS', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'getAccountByAddr',
+    stateMutability: 'view',
+    inputs: [{ name: 'accountAddress', type: 'address' }],
+    outputs: [{
+      name: 'accountInfo',
+      type: 'tuple',
+      components: [
+        { name: 'accountId', type: 'uint256' },
+        { name: 'balanceCNS', type: 'uint256' },
+        { name: 'lockedBalanceCNS', type: 'uint256' },
+        { name: 'frozen', type: 'uint8' },
+        { name: 'accountAddr', type: 'address' },
+        {
+          name: 'positions',
+          type: 'tuple',
+          components: [
+            { name: 'bank1', type: 'uint256' },
+            { name: 'bank2', type: 'uint256' },
+            { name: 'bank3', type: 'uint256' },
+            { name: 'bank4', type: 'uint256' },
+          ],
+        },
+      ],
+    }],
   },
 ] as const;
 
@@ -79,14 +121,13 @@ async function loadKey(address: string): Promise<{ stored: StoredKey; privateKey
     pkcs8: b64(pkcs8),
     publicKey: rawPublic(pair.publicKey),
   };
-  await mkdir(path.dirname(keyFile), { recursive: true });
-  await writeFile(keyFile, JSON.stringify(stored), { mode: 0o600 });
+  await writeState(keyFile, JSON.stringify(stored)).catch(() => {});
   return { stored, privateKey: pair.privateKey };
 }
 
 function remember(stored: StoredKey, apiKey: string) {
   const next = { ...stored, apiKey };
-  return writeFile(keyFile, JSON.stringify(next), { mode: 0o600 }).then(() => next);
+  return writeState(keyFile, JSON.stringify(next)).catch(() => {}).then(() => next);
 }
 
 async function perpl(method: 'GET' | 'POST', target: string, payload = '', headers?: Record<string, string>) {
@@ -324,7 +365,153 @@ export async function submitHouseOrder(input: {
     hedge,
     statuses,
     detail: accepted
-      ? 'Perpl accepted the house order.'
+      ? 'Perpl queued the house order. The house account view shows whether it filled on-chain.'
       : 'Perpl evaluated the house order and did not accept it.',
   };
+}
+
+export type HouseActivity = PerplActivity;
+
+export type HouseAccountView = PerplAccountSnapshot & {
+  address: string;
+  enrolled: boolean;
+  detail?: string;
+  /** AUSD sitting in the hedge wallet itself, outside Perpl. */
+  walletAusd: number;
+};
+
+async function monadClient() {
+  const { createPublicClient, http } = await import('viem');
+  return createPublicClient({ chain: monad, transport: http('https://rpc.monad.xyz') });
+}
+
+async function readWalletAusd(address: `0x${string}`) {
+  const client = await monadClient();
+  return client.readContract({ address: MONAD_AUSD, abi: erc20Abi, functionName: 'balanceOf', args: [address] });
+}
+
+export type HouseClaim = {
+  to: string;
+  withdrawn: number;
+  sent: number;
+  withdrawTx?: `0x${string}`;
+  transferTx?: `0x${string}`;
+};
+
+/** Claims and forwarding changes share the hedge wallet nonce, so only one runs at a time. */
+let writing = false;
+
+async function exclusive<T>(run: () => Promise<T>): Promise<T> {
+  if (writing) throw new Error('The hedge wallet is busy with another transaction. Try again in a minute.');
+  writing = true;
+  try {
+    return await run();
+  } finally {
+    writing = false;
+  }
+}
+
+/** Sends allowOrderForwarding from the hedge wallet, which owns the Perpl account. */
+export async function setHouseForwarding(allow: boolean): Promise<{ forwarding: boolean; tx: `0x${string}` }> {
+  return exclusive(async () => {
+    const { walletClient } = await dynamicWalletClient();
+    const client = await monadClient();
+    const tx = await walletClient.writeContract({
+      address: EXCHANGE,
+      abi: exchangeAbi,
+      functionName: 'allowOrderForwarding',
+      args: [allow],
+      gas: 120_000n,
+    } as never);
+    const receipt = await client.waitForTransactionReceipt({ hash: tx });
+    if (receipt.status !== 'success') throw new Error(`Perpl did not change forwarding (${tx}).`);
+    return { forwarding: allow, tx };
+  });
+}
+
+/**
+ * Pulls the free Perpl collateral back to the hedge wallet, then sends every AUSD
+ * the hedge wallet holds to `to`. MON stays behind for gas.
+ */
+export async function claimHouseFunds(to: `0x${string}`): Promise<HouseClaim> {
+  return exclusive(async () => {
+    const { address, walletClient } = await dynamicWalletClient();
+    const client = await monadClient();
+    let withdrawTx: `0x${string}` | undefined;
+    let withdrawn = 0n;
+
+    const info = await client.readContract({
+      address: EXCHANGE,
+      abi: exchangeAbi,
+      functionName: 'getAccountByAddr',
+      args: [address],
+    }).catch(() => null);
+    if (info && info.accountId > 0n) {
+      const free = info.balanceCNS - info.lockedBalanceCNS;
+      if (free >= 10_000n) {
+        withdrawTx = await walletClient.writeContract({
+          address: EXCHANGE,
+          abi: exchangeAbi,
+          functionName: 'withdrawCollateral',
+          args: [free],
+          gas: 200_000n,
+        } as never);
+        const receipt = await client.waitForTransactionReceipt({ hash: withdrawTx });
+        if (receipt.status !== 'success') throw new Error(`Perpl withdrawal reverted (${withdrawTx}).`);
+        withdrawn = free;
+      }
+    }
+
+    const balance = await readWalletAusd(address);
+    if (balance === 0n) {
+      throw new Error('There is no AUSD to claim. The Perpl account and the hedge wallet are both empty.');
+    }
+    const transferTx = await walletClient.writeContract({
+      address: MONAD_AUSD,
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [to, balance],
+      gas: 80_000n,
+    } as never);
+    const receipt = await client.waitForTransactionReceipt({ hash: transferTx });
+    if (receipt.status !== 'success') throw new Error(`AUSD transfer reverted (${transferTx}).`);
+
+    return { to, withdrawn: ausd(withdrawn.toString()), sent: ausd(balance.toString()), withdrawTx, transferTx };
+  });
+}
+
+/** Read-only view of the house Perpl account. Uses the stored trade key and never creates a key or an account. */
+export async function readHouseAccount(): Promise<HouseAccountView> {
+  let stored: StoredKey | null = null;
+  try {
+    stored = JSON.parse(await readFile(keyFile, 'utf8')) as StoredKey;
+  } catch {
+    stored = null;
+  }
+  const address = stored?.address ?? await dynamicAddress().catch(() => '');
+  const walletAusd = address ? ausd((await readWalletAusd(address as `0x${string}`).catch(() => 0n)).toString()) : 0;
+  const empty: HouseAccountView = { address, enrolled: false, walletAusd, account: null, positions: [], openOrders: [], activity: [], fetchedAt: Date.now() };
+  if (!stored?.apiKey || !stored.pkcs8) {
+    return { ...empty, detail: 'This server has no enrolled Perpl trade key for the house wallet yet.' };
+  }
+  const { createPrivateKey } = await import('node:crypto');
+  const privateKey = createPrivateKey({ key: Buffer.from(stored.pkcs8, 'base64'), format: 'der', type: 'pkcs8' });
+  const get = <T>(target: string) => signed(stored!, privateKey, 'GET', target).then((data) => data as T).catch((error) => {
+    if ((error as { status?: number }).status === 404) return null;
+    throw error;
+  });
+
+  const [context, wallet, positions, orders, fills, orderHistory, positionHistory, accountHistory] = await Promise.all([
+    perpl('GET', '/v1/pub/context') as Promise<PerplRaw['context']>,
+    get<PerplRaw['wallet']>(PERPL_VIEW_PATHS.wallet),
+    get<PerplRaw['positions']>(PERPL_VIEW_PATHS.positions),
+    get<PerplRaw['orders']>(PERPL_VIEW_PATHS.orders),
+    get<PerplRaw['fills']>(PERPL_VIEW_PATHS.fills),
+    get<PerplRaw['orderHistory']>(PERPL_VIEW_PATHS.orderHistory),
+    get<PerplRaw['positionHistory']>(PERPL_VIEW_PATHS.positionHistory),
+    get<PerplRaw['accountHistory']>(PERPL_VIEW_PATHS.accountHistory),
+  ]);
+  const view = buildPerplView({ context, wallet, positions, orders, fills, orderHistory, positionHistory, accountHistory });
+  if (!view.account) return { ...empty, enrolled: true, detail: 'The house wallet has no Perpl account yet.' };
+  return { ...view, address, enrolled: true, walletAusd };
 }

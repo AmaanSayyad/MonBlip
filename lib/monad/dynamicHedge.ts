@@ -1,8 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import type { WalletMetadata } from '@dynamic-labs-wallet/node';
+import { stateFile, writeState } from '@/lib/server/stateFile';
 
-const walletFile = path.join(process.cwd(), '.dynamic', 'hedge-wallet.json');
+const walletFile = stateFile('.dynamic', 'hedge-wallet.json');
 
 function credentials() {
   const authToken = process.env.DYNAMIC_AUTH_TOKEN?.trim();
@@ -24,8 +24,7 @@ async function savedWallet(): Promise<WalletMetadata | null> {
 }
 
 async function remember(wallet: WalletMetadata) {
-  await mkdir(path.dirname(walletFile), { recursive: true });
-  await writeFile(walletFile, JSON.stringify(wallet), { mode: 0o600 });
+  await writeState(walletFile, JSON.stringify(wallet)).catch(() => {});
 }
 
 type DynamicSession = {

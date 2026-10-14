@@ -39,11 +39,14 @@ export async function GET(
     const variants = walletAddressSearchVariants(address);
 
     // Sum balances across legacy duplicate rows (e.g. mixed EVM casing)
-    const { data: balRows, error } = await supabase
-      .from('user_balances')
-      .select('balance, updated_at, user_address')
-      .in('user_address', variants)
-      .eq('currency', currency);
+    const [{ data: balRows, error }, globallyBanned] = await Promise.all([
+      supabase
+        .from('user_balances')
+        .select('balance, updated_at, user_address, user_tier')
+        .in('user_address', variants)
+        .eq('currency', currency),
+      isWalletGloballyBanned(address),
+    ]);
 
     if (error) {
       logDbOnce('balance', error);
@@ -57,7 +60,6 @@ export async function GET(
     }
 
     if (!balRows?.length) {
-      const globallyBanned = await isWalletGloballyBanned(address);
       return NextResponse.json({
         balance: 0,
         updatedAt: null,
@@ -75,23 +77,9 @@ export async function GET(
     const tierSource =
       balRows.find(r => r.user_address === userKey) ?? latestRow;
 
-    let userTier = 'free';
-    try {
-      const { data: tierData } = await supabase
-        .from('user_balances')
-        .select('user_tier')
-        .eq('user_address', tierSource.user_address)
-        .eq('currency', currency)
-        .single();
-
-      if (tierData && (tierData as { user_tier?: string }).user_tier) {
-        userTier = String((tierData as { user_tier?: string }).user_tier);
-      }
-    } catch (e) {
-      console.warn('Could not fetch user_tier, defaulting to free:', e);
-    }
-
-    const globallyBanned = await isWalletGloballyBanned(address);
+    const userTier = (tierSource as { user_tier?: string | null }).user_tier
+      ? String((tierSource as { user_tier?: string | null }).user_tier)
+      : 'free';
 
     return NextResponse.json({
       balance: totalBalance,

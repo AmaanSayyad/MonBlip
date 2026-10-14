@@ -1,9 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { NextRequest, NextResponse } from 'next/server';
+import { stateFile, writeState } from '@/lib/server/stateFile';
 
 const API = 'https://intents-api.aurora.dev/api';
-const quoteFile = path.join(process.cwd(), '.data', 'aurora-quote.json');
+const quoteFile = stateFile('.data', 'aurora-quote.json');
 
 function appKey() {
   const key = process.env.AURORA_INTENTS_API_KEY?.trim();
@@ -52,16 +52,18 @@ async function savedQuote() {
 }
 
 async function rememberQuote(payload: Record<string, unknown>) {
-  await mkdir(path.dirname(quoteFile), { recursive: true });
-  await writeFile(quoteFile, JSON.stringify({ ...payload, savedAt: new Date().toISOString() }), { mode: 0o600 });
+  await writeState(quoteFile, JSON.stringify({ ...payload, savedAt: new Date().toISOString() })).catch(() => {});
 }
 
 export async function GET(request: NextRequest) {
   const latest = request.nextUrl.searchParams.get('latest');
+  const recipient = request.nextUrl.searchParams.get('recipient')?.toLowerCase() || '';
   let depositAddress = request.nextUrl.searchParams.get('depositAddress') || '';
   let depositMemo = request.nextUrl.searchParams.get('depositMemo');
   if (latest === '1' && !depositAddress) {
     const saved = await savedQuote();
+    const savedRecipient = typeof saved?.recipient === 'string' ? saved.recipient.toLowerCase() : '';
+    if (!recipient || savedRecipient !== recipient) return NextResponse.json({ quote: null });
     const nested = saved?.quote as { depositAddress?: string; depositMemo?: string } | undefined;
     depositAddress = typeof saved?.depositAddress === 'string'
       ? saved.depositAddress
@@ -83,6 +85,9 @@ export async function GET(request: NextRequest) {
     const payload = await status.json().catch(() => ({}));
     if (latest === '1') {
       const saved = await savedQuote();
+      if (!saved || String(saved.recipient || '').toLowerCase() !== recipient) {
+        return NextResponse.json({ quote: null });
+      }
       const live = typeof payload?.status === 'string' ? payload.status : null;
       if (saved && live) await rememberQuote({ ...saved, status: live });
       return NextResponse.json(
@@ -141,6 +146,8 @@ export async function POST(request: NextRequest) {
     if (quote.ok && (payload?.quote?.depositAddress || payload?.depositAddress)) {
       await rememberQuote({
         ...payload,
+        recipient: recipient.toLowerCase(),
+        originAsset,
         destinationSymbol: destination.symbol,
         destinationAsset: destination.assetId,
         status: 'PENDING_DEPOSIT',

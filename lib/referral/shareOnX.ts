@@ -6,13 +6,13 @@ export function getReferralShareTweetText(): string {
   return [
     'This platform is Insane.⚡️',
     '',
-    'MonBlip - short charts for crypto, stocks, metals, commodities and FX.', 
+    'MonBlip.fun - short charts for crypto, stocks, metals, commodities and FX.', 
     'Rounds run from 5 seconds to 1 minute.',
     '',
-    'Open MonBlip from my link and the join in.',
+    'Open @MonBlip from my link and the join in.',
     'Stop watching. Start trading.', 
     '',
-    'Try it now: @MonBlip 👇',
+    'Try it now:',
     ].join('\n');
 }
 

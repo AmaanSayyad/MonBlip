@@ -1,5 +1,14 @@
 # Litepaper Changelog
 
+## v1.6.0 - 2026-10-14
+
+- Funding is two steps: fill the passkey wallet from MetaMask, any wallet, or Aurora, then deposit into the house balance. Gas rules for MON and AUSD deposits are stated.
+- Mera: the passkey derives the wallet in the browser, the session lasts 15 minutes, and a deposit or withdrawal asks again.
+- Prices now list the real order: Binance, Bybit checked against Hyperliquid, Hyperliquid mids, Yahoo quotes, Pyth, then Pyth Pro. The chart polls every two seconds.
+- Chainlink CRE is described as the closer for BTC direction rounds. Perpl calls run from Mumbai.
+- Security covers the in-memory passkey key and AES-GCM sealed bet slips.
+- New funding diagram in the house balance section. Founder photo and portfolio link updated.
+
 ## v1.5.0 - 2026-10-14
 
 - The live desk is Monad only. Play assets are AUSD and MON.

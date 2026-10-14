@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { signDynamicHedge } from '@/lib/monad/dynamicHedge';
-import { submitHouseOrder } from '@/lib/monad/perplHouse';
+import { readHouseAccount, submitHouseOrder } from '@/lib/monad/perplHouse';
+
+/** Perpl answers 451 to US egress, so its calls leave from Mumbai. */
+export const preferredRegion = 'bom1';
+
+/** Read-only: the house Perpl account, its open positions and orders, and what happened to each order. */
+export async function GET() {
+  try {
+    return NextResponse.json(await readHouseAccount(), { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Perpl account could not be read';
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
 
 /**
  * Dynamic's Node SDK holds the hedge key, not the trader's passkey.

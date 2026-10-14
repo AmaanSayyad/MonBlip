@@ -102,25 +102,29 @@ export function SpotlightTour({
     if (!isOpen || !step) return;
     let attempts = 0;
     let timer = 0;
+    const settle: number[] = [];
+    const measure = () => {
+      const node = find(step);
+      if (node) setBox(node.getBoundingClientRect());
+    };
     const tick = () => {
       const node = find(step);
       if (node) {
         node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
         setBox(node.getBoundingClientRect());
+        // Entrance animations and smooth scrolling move the target after the first read.
+        for (const delay of [250, 550, 900]) settle.push(window.setTimeout(measure, delay));
         return;
       }
       attempts += 1;
       if (attempts < 12) timer = window.setTimeout(tick, 150);
     };
     timer = window.setTimeout(tick, 40);
-    const measure = () => {
-      const node = find(step);
-      if (node) setBox(node.getBoundingClientRect());
-    };
     window.addEventListener('resize', measure);
     window.addEventListener('scroll', measure, true);
     return () => {
       window.clearTimeout(timer);
+      settle.forEach((id) => window.clearTimeout(id));
       window.removeEventListener('resize', measure);
       window.removeEventListener('scroll', measure, true);
     };
@@ -213,9 +217,24 @@ export function SpotlightTour({
             <p className="rounded-xl border border-[#7005FC]/30 bg-[#7005FC]/10 px-3 py-2 text-sm leading-5 text-white">{step.win}</p>
           ) : null}
         </motion.div>
-        <div className="mt-3 flex shrink-0 items-center justify-between border-t border-white/10 px-4 py-3">
-          <button type="button" onClick={onClose} className="text-sm text-[#E4E4E4] hover:text-white">Skip</button>
-          <div className="flex gap-2">
+        <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <button type="button" onClick={onClose} className="text-sm text-[#E4E4E4] hover:text-white">Skip</button>
+            <div className="hidden items-center gap-1 sm:flex" role="tablist" aria-label="Tour steps">
+              {steps.map((item, i) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === index}
+                  aria-label={`Step ${i + 1}: ${item.title}`}
+                  onClick={() => setIndex(i)}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${i === index ? 'w-4 bg-[#B781FE]' : i < index ? 'w-1.5 bg-[#7005FC]' : 'w-1.5 bg-white/20 hover:bg-white/40'}`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
             {index > 0 ? (
               <button type="button" onClick={() => setIndex(index - 1)} className="h-9 rounded-full border border-white/10 px-4 text-sm text-white">Back</button>
             ) : null}
