@@ -10,7 +10,7 @@ import { ReceiptDrawer, type ReceiptData } from './ReceiptDrawer';
 import { useToast } from '@/lib/hooks/useToast';
 import { OPEN_DEPOSIT_EVENT, OPEN_WITHDRAW_EVENT, consumeDepositRequest, consumeWithdrawRequest } from '@/lib/ui/depositPrompt';
 import { TokenLogo } from '@/components/ui/TokenLogo';
-import { SendOut } from './SendOut';
+import { SendOutButton, SendOutPanel } from './SendOut';
 
 /**
  * BalanceDisplay Component
@@ -52,6 +52,7 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ wallet }) => {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
   const [walletKind, setWalletKind] = useState<'Passkey wallet' | 'MetaMask'>('Passkey wallet');
   useEffect(() => {
     void import('@/lib/monad/injectedWallet').then(({ metaMaskActive }) => setWalletKind(metaMaskActive() ? 'MetaMask' : 'Passkey wallet'));
@@ -214,6 +215,7 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ wallet }) => {
                 : null;
 
   const showWallet = Boolean(wallet) && accountType === 'real';
+  const canSendOut = network === 'MONAD' && walletKind === 'Passkey wallet';
   const walletBalance = wallet?.balance ?? 0;
   const walletFormatted = Number(walletBalance.toFixed(4)).toString();
   const walletWaiting = showWallet && !wallet?.loading && walletBalance > 0 && houseBalance <= 0;
@@ -259,11 +261,14 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ wallet }) => {
                 {copied ? <Check className="h-3 w-3 text-[#82FF68]" /> : <Copy className="h-3 w-3" />}
               </button>
             </div>
-            <p className="mt-1 flex items-center gap-1.5 text-base font-medium tabular-nums text-white">
-              {network === 'MONAD' ? <TokenLogo token={currentSymbol === 'MON' ? 'MON' : 'AUSD'} size={16} /> : null}
-              {wallet?.loading ? '…' : walletFormatted} <span className="text-xs text-[#B781FE]">{currentSymbol}</span>
-            </p>
-            {network === 'MONAD' && walletKind === 'Passkey wallet' ? <SendOut /> : null}
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-base font-medium tabular-nums text-white">
+                {network === 'MONAD' ? <TokenLogo token={currentSymbol === 'MON' ? 'MON' : 'AUSD'} size={16} /> : null}
+                {wallet?.loading ? '…' : walletFormatted} <span className="text-xs text-[#B781FE]">{currentSymbol}</span>
+              </p>
+              {canSendOut ? <SendOutButton open={sendOpen} onClick={() => setSendOpen((value) => !value)} /> : null}
+            </div>
+            {canSendOut && sendOpen ? <SendOutPanel onClose={() => setSendOpen(false)} /> : null}
             <span
               className={`absolute -bottom-3 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${
                 walletWaiting ? 'border-[#7005FC]/60 bg-[#1D1030] text-[#DDD7FE]' : 'border-[#2a2a2a] bg-[#141414] text-white/45'
