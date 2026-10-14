@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, Roboto_Mono, Unbounded } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -25,8 +25,13 @@ const display = Unbounded({
 const configuredSite = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '') || '';
 const siteUrl = configuredSite && !/tapt/i.test(configuredSite) && !/localhost|127\.0\.0\.1/.test(configuredSite) ? configuredSite : 'https://monblip.fun';
 
+export const viewport: Viewport = {
+  themeColor: '#070010',
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  appleWebApp: { capable: true, title: 'MonBlip', statusBarStyle: 'black-translucent' },
   title: "MonBlip - Trade over 300+ Crypto, Stocks, Metals and Forex with 5s-1m time-charts",
   description:
     "Short charts for crypto, stocks, metals, and FX. Rounds run from 5 seconds to 1 minute and settle from the house balance.",

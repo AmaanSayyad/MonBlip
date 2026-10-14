@@ -162,7 +162,7 @@ sequenceDiagram
   Desk-->>Trader: Stake debited, win credits stake times multiplier
 ```
 
-**Best Mobile Trading App on Monad.** MonBlip is the mobile short-chart desk. Mera is the passkey account. Agora AUSD is the stablecoin house balance, with native MON beside it. The trader deposits, sees that balance, and bets Classic, Box, or Draw at 5s, 10s, 15s, 30s or 1m without a signature on the stake. The same passkey opens Perpl at https://monblip.fun/perpl and places the MON perpetual. The house hedge is a separate Dynamic signature. A win credits stake times the multiplier. A withdrawal returns AUSD or MON from the Monad treasury.
+**Best Mobile Trading App on Monad.** MonBlip is the mobile short-chart desk. Mera is the passkey account. Agora AUSD is the stablecoin house balance, with native MON beside it. The trader deposits, sees that balance, and bets Classic, Box, or Draw at 5s, 10s, 15s, 30s or 1m without a signature on the stake. The same passkey opens Perpl at https://monblip.fun/perpl and places the MON perpetual. The house hedge is a separate Dynamic signature. A win credits stake times the multiplier. A withdrawal returns AUSD or MON from the Monad treasury. On a phone, "Add to Home Screen" installs MonBlip as a standalone app that opens on /trade.
 
 Demo: https://drive.google.com/drive/folders/1_Jvrra2rfWiGr4rMQQy6wHk05iv1pPw_?usp=sharing
 
