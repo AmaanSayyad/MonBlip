@@ -143,7 +143,7 @@ export default function ReferralPage() {
                         <>
                         <ul className="sm:hidden">
                             {ranked.map((entry, index) => {
-                                const mine = Boolean(address) && (
+                                const mine = address != null && (
                                     address.toLowerCase() === entry.user_address.toLowerCase()
                                     || shorten(address) === entry.user_address
                                 );
