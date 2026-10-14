@@ -1,0 +1,13 @@
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-mainnet
+      url: https://ethereum.publicnode.com
+    - chain-name: monad-mainnet
+      url: https://rpc.monad.xyz
+
+production-settings:
+  rpcs:
+    - chain-name: ethereum-mainnet
+      url: https://ethereum.publicnode.com
+    - chain-name: monad-mainnet
+      url: https://rpc.monad.xyz
