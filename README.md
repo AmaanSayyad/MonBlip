@@ -19,7 +19,7 @@ Binary options trading platform where users can trade 1000+ crypto, stocks, meta
 
 MonBlip is a short-tick desk on Monad. The settlement price is the public chart. The first user holds AUSD or MON in MetaMask or a Mera passkey.
 
-Open https://monblip.fun/trade, connect MetaMask on Monad mainnet (chain 143), and deposit AUSD or MON. The house balance updates after the transfer verifies. Higher or Lower stakes that balance. A win pays the stake times the multiplier shown on the button. A loss takes the stake. Withdraw pays the same asset back from the treasury.
+Open https://monblip.fun/trade and press Connect. "Create a passkey" makes a Mera account in one prompt. MetaMask on Monad mainnet (chain 143) is the second way in. Fill the passkey wallet with AUSD or MON from MetaMask (1, 10, 25 or 50 AUSD in one click), from any Monad wallet, or from another chain at https://monblip.fun/fund. Then press Deposit. The house balance updates after the transfer verifies. Higher or Lower stakes that balance. A win pays the stake times the multiplier shown on the button. A loss takes the stake. Withdraw pays the same asset back from the treasury.
 
 The round itself does not send a transaction. Monad is fast enough that the funding transfer is the onchain step, and the tick does not sit in a pending state. The chart uses a public quote.
 
@@ -37,17 +37,28 @@ AI coding tools, including Cursor, were used to write, edit, and review this rep
 | Sponsor | Role |
 |---|---|
 | Monad | The chain. Mainnet, chain ID 143 |
-| Mera | Passkey account |
+| Mera | Passkey account, and the encrypted bet slip |
 | MetaMask | Browser wallet, and the Agent Wallet plugin |
 | Agora | AUSD, the house-balance asset |
 | Aurora | Fund MON through Aurora Intents |
 | Envio | Index AUSD and MON transfers |
 | Chainlink CRE | Close the round |
 | Dynamic | Sign the house hedge |
-| Perpl | Offsetting MON perpetual |
+| Perpl | MON perpetual for the trader's long and the house hedge |
 | Nansen | Wallet labels as a trading stance |
 
 The live play assets are Agora AUSD (`0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a`) and native MON. Treasury `0xcbae80461bb820e4075035f765f8a46fa65a6ded`. Fee wallet `0x9B4d9039A96Bfd7320C865aaCC69F35b51f425a7`. RPC `https://rpc.monad.xyz`. Explorer https://monadvision.com.
+
+Every sponsor flow below lists its own transactions on Monad mainnet. These are the wallets behind them:
+
+| Wallet | Role |
+|---|---|
+| [`0xcbae…6ded`](https://monadvision.com/address/0xcbae80461bb820e4075035f765f8a46fa65a6ded) | Monad treasury |
+| [`0x9B4d…25a7`](https://monadvision.com/address/0x9B4d9039A96Bfd7320C865aaCC69F35b51f425a7) | Fee wallet |
+| [`0xF724…c5b6`](https://monadvision.com/address/0xF7249B507F1f89Eaea5d694cEf5cb96F245Bc5b6) | Test MetaMask wallet |
+| [`0x5700…f473`](https://monadvision.com/address/0x5700C9B2918B27Aa1D9ED63939880e4f2ab5f473) | Mera passkey, Perpl account #5501 |
+| [`0xbFD5…7e3F`](https://monadvision.com/address/0xbFD5816003999bF2ba8A3818FC9df07fF20C7e3F) | Mera passkey, Perpl account #5506 |
+| [`0xdfE8…fc00`](https://monadvision.com/address/0xdfE8C57CfC2900f74D3a513DBd075F5e6970fc00) | Dynamic hedge wallet, Perpl account #5489 |
 
 ## Sponsor flows
 
@@ -74,9 +85,20 @@ sequenceDiagram
   DB-->>Trader: Balance in the same asset
 ```
 
+Transactions:
+
+- [0.1 MON deposit to the treasury](https://monadvision.com/tx/0x9b269cba30ce21e422150d7d6da8f6d262e26e7dbcbe88b2d4b338fe815a4688)
+- [0.1 AUSD deposit to the treasury](https://monadvision.com/tx/0xa7a24041f6794b733b3b41b11d67dfad14a10bf2aa2d6189e37037bc8f2432a5)
+- [200 MON deposit to the treasury](https://monadvision.com/tx/0x9bb444cb85a1411bb39cf3fd5e60942f138ba639b1dc807ca7dc930f68b4a425)
+- [0.99 MON withdrawal from the treasury](https://monadvision.com/tx/0xbbab889b4d50221ab01c2664f4c2c7572f1f7a233e4f86419720cae40e77f4ce)
+- [4.95 MON withdrawal from the treasury](https://monadvision.com/tx/0xb9ef38e4d979674f7a0641741ea9c4d5f52e3e6e0d3a09a2624a86e79126a661)
+- [0.099 AUSD withdrawal from the treasury](https://monadvision.com/tx/0x9989931c64245d90bb2b1efd8bf890041f4ec25a046166ae5b63930566f332b2)
+- [1% deposit fee to the fee wallet, 0.001 AUSD](https://monadvision.com/tx/0x2b91665a02fc8f4f566910f7e57e62a88aee82ec84b40ea8f45ca87bb8fd4c2b)
+- [1% withdrawal fee to the fee wallet, 0.05 MON](https://monadvision.com/tx/0x0079fe085b859d4dfd85352ae3b125acaba13a9e09ab566830961523fe08ea03)
+
 ### Mera
 
-Mera is the human account. The passkey signs the deposit, the withdrawal, and the trader's Perpl order. A second PRF salt encrypts the bet slip in the browser.
+Mera is the human account. The passkey signs the deposit, the withdrawal, Send, and the trader's Perpl order. A second PRF salt encrypts the bet slip in the browser.
 
 ```mermaid
 sequenceDiagram
@@ -84,25 +106,44 @@ sequenceDiagram
   participant App as MonBlip
   participant Mera as Mera passkey
   participant Monad
-  participant API as Balance API
+  participant API as MonBlip API
 
   Trader->>App: Create or restore the passkey
-  App->>Mera: WebAuthn ceremony
-  Mera-->>App: Account address
+  App->>Mera: One WebAuthn ceremony
+  Mera-->>App: Account address and a 15-minute signing session
   Trader->>App: Deposit AUSD or MON
-  App->>Mera: Sign the transfer
+  App->>Mera: Passkey prompt, then sign the transfer
   Mera->>Monad: Treasury transfer
   App->>API: Verify the hash and credit the house balance
-  Trader->>App: Seal the round slip
+  Trader->>App: Play a round
   App->>Mera: PRF on the slip salt
-  Mera-->>App: Ciphertext stored in the browser
+  Mera-->>App: Slip key, held in memory
+  App->>API: POST /api/monad/slip with the ciphertext only
+  Trader->>App: Open the slips on a fresh browser
+  App->>API: GET /api/monad/slip
+  App->>Mera: Same passkey, same slip key
+  Mera-->>Trader: The same rounds decrypt
 ```
 
-**Best Mera-Powered UX on Monad.** Mera is the entire account layer. A passkey creates the wallet, restores the session, and signs the Monad deposit, the withdrawal, and the user's Perpl order. The passkey address is the house-balance key, so AUSD, MON, referrals and settled rounds belong to that account. MetaMask is the second way in. Dynamic never replaces the passkey.
+**Best Mera-Powered UX on Monad.** Mera is the entire account layer. A passkey creates the wallet, restores the session, and signs the Monad deposit, the withdrawal, Send, and the user's Perpl order. The passkey address is the house-balance key, so AUSD, MON, referrals and settled rounds belong to that account. MetaMask is the second way in. Dynamic never replaces the passkey.
+
+- **One prompt to start.** "Create a passkey" is a single ceremony. No seed phrase, extension, or email code.
+- **Scoped session.** A signing session lasts 15 minutes. A round and the Perpl order sign without a prompt. A deposit, a withdrawal, and Send ask for the passkey again and check it is the same account. When the session ends, the next action asks once.
+- **Stateless.** The passkey is discoverable. With local storage cleared, or on a new device with a synced passkey, one prompt brings back the same address and balances.
+- **Send.** Under the passkey wallet balance, Send moves every AUSD and all MON to another Monad address in one prompt. It previews the amounts, keeps a little MON for gas, sizes gas for smart-account recipients, and marks each transfer sent or failed with its transaction.
+
+Transactions signed by Mera passkeys:
+
+- [4.98 MON deposit to the treasury](https://monadvision.com/tx/0x802787970bafad5a4010cd5bf5c8ee92abc721ab0d14c16a4fdbf3ff9dde58f1)
+- [0.99 MON withdrawal back to the passkey](https://monadvision.com/tx/0x6fea201042a7e2ca8a3eeb6bd328ed12c94ba33db934f4f673f6941e56580bec)
+- [10 AUSD deposit to the treasury](https://monadvision.com/tx/0xd4e0f5c8e144737f1f0c678077c7f14453b5a0192d0b27f9763b2b93d2de5c19)
+- [9.1872 AUSD withdrawal back to the passkey](https://monadvision.com/tx/0x2f6e4b8043ce35f454a172d8ca4a1b2ef28508cf48087f28c418fced274e2fe9)
+- Send, 10 AUSD and 99.49 MON: [AUSD](https://monadvision.com/tx/0xd00c572ea63f5b129b9e40cb282f91120e2c7b6e86aff7c350b8949baeb35b33), [MON](https://monadvision.com/tx/0x4c2586b16db2c59d24e39f0fd659b5052a5e086e59dc8ec027b237747dcabdf2)
+- Send, 9.1872 AUSD and 9.98 MON: [AUSD](https://monadvision.com/tx/0x8c4ff07b8f19e0eeaf896b206bffd6dd97a51dc6b920d1eedd564cf4c709b34d), [MON](https://monadvision.com/tx/0xdc3514523ce2b76e65d894a5470f899b4d20a256d6e5afe4397bf822685aedaf)
 
 Demo: https://drive.google.com/drive/folders/1mhdRbF9Ee4ETzBAHmJ6SO1k9NrqHbwAF?usp=sharing
 
-**Mera: One Passkey, Many Keys.** The same passkey has a second PRF namespace for the bet slip. That salt is separate from the spending key. The slip encrypts the direction, the stake and the asset in the browser. Only the ciphertext is stored. Opening it needs the passkey again. That step is not a blockchain transaction.
+**Mera: One Passkey, Many Keys.** The same passkey has a second PRF namespace for the bet slip. That salt is separate from the spending key. The slip key is an AES-GCM key that stays in memory. It encrypts the direction, the stake and the asset in the browser. Only the ciphertext is stored, in the browser and in Supabase (`sealed_slips`) under the passkey address. On a fresh browser profile or a second device, the same passkey derives the same slip key and opens the same slips. A blob sealed under another salt does not open. That step is not a blockchain transaction.
 
 Demo: https://drive.google.com/drive/folders/1KFzESdcv2whLmsGc79EKSV_g7gQgzQWH?usp=sharing
 
@@ -136,6 +177,14 @@ sequenceDiagram
 
 **Best Agent Wallet Plugin.** The plugin is the agent path. `mm monblip desk` reads the BTC quote with no wallet. `mm monblip fund` sends AUSD or MON to the Monad treasury through the Agent Wallet, then asks MonBlip to credit that exact transfer. `mm monblip round` stakes a capped 5s to 60s round from that house balance. The Agent Wallet signs the round text. MonBlip recovers the signer and debits that wallet. Every transfer and every stake goes through `mm`, including policy and MFA. The cap is 10 units. The desk is https://monblip.fun.
 
+Transactions from the MetaMask browser wallet:
+
+- [1 AUSD deposit to the treasury](https://monadvision.com/tx/0xeb7644c90e4afaaf4c11eba3c064ebacd4d8f0d1084cd088bd6d2f68e4493014)
+- [200 MON deposit to the treasury](https://monadvision.com/tx/0x9bb444cb85a1411bb39cf3fd5e60942f138ba639b1dc807ca7dc930f68b4a425)
+- [10 MON deposit relayed by MetaMask](https://monadvision.com/tx/0x15689462272abb9253ffde7aae035fd9a20c8fab94bb8a53a0f7038e4df95525), credited from the inner call to the treasury
+- [0.2 AUSD deposit relayed by MetaMask](https://monadvision.com/tx/0x22bad841281dfd7845167546c45790d8c68724728a9b26d37e8807c177f6a18f)
+- [10 AUSD top-up from MetaMask to a passkey](https://monadvision.com/tx/0xa5eb76d00f14268c5d1f3ed96eacf8d6fa02fbb03e8cf014d3d509de93a6a46a)
+
 Skill file: https://github.com/AmaanSayyad/MonBlip/blob/main/plugins/mm-monblip/skills/monblip/SKILL.md
 
 Demo: https://drive.google.com/drive/folders/1Prpgo-lHxlNzxHmTHhm7d94ZVu-62hrm?usp=sharing
@@ -162,7 +211,16 @@ sequenceDiagram
   Desk-->>Trader: Stake debited, win credits stake times multiplier
 ```
 
-**Best Mobile Trading App on Monad.** MonBlip is the mobile short-chart desk. Mera is the passkey account. Agora AUSD is the stablecoin house balance, with native MON beside it. The trader deposits, sees that balance, and bets Classic, Box, or Draw at 5s, 10s, 15s, 30s or 1m without a signature on the stake. The same passkey opens Perpl at https://monblip.fun/perpl and places the MON perpetual. The house hedge is a separate Dynamic signature. A win credits stake times the multiplier. A withdrawal returns AUSD or MON from the Monad treasury. On a phone, "Add to Home Screen" installs MonBlip as a standalone app that opens on /trade.
+**Best Mobile Trading App on Monad.** MonBlip is the mobile short-chart desk. Mera is the passkey account. Agora AUSD is the stablecoin house balance, with native MON beside it. The trader deposits, sees that balance, and bets Classic, Box, or Draw at 5s, 10s, 15s, 30s or 1m without a signature on the stake. The same passkey opens Perpl at https://monblip.fun/perpl and places the MON perpetual. The house hedge is a separate Dynamic signature. A win credits stake times the multiplier. A withdrawal returns AUSD or MON from the Monad treasury. On /perpl the ticket shows the AUSD in the passkey and the free Perpl collateral. When that collateral is below 0.25 AUSD, the ticket adds 1 AUSD from the passkey, then places the 1 MON long and shows the fill or Perpl's reason. On a phone, "Add to Home Screen" installs MonBlip as a standalone app that opens on /trade.
+
+AUSD transactions:
+
+- [0.1 AUSD deposit from MetaMask](https://monadvision.com/tx/0xa7a24041f6794b733b3b41b11d67dfad14a10bf2aa2d6189e37037bc8f2432a5)
+- [10 AUSD deposit from a passkey](https://monadvision.com/tx/0xd4e0f5c8e144737f1f0c678077c7f14453b5a0192d0b27f9763b2b93d2de5c19)
+- [0.1 AUSD fee on that deposit](https://monadvision.com/tx/0x5673404cc2a1d67ce06a5f6407ab72b54c885762215b817f7c14bf281f3b6536)
+- [9.1872 AUSD withdrawal to the passkey](https://monadvision.com/tx/0x2f6e4b8043ce35f454a172d8ca4a1b2ef28508cf48087f28c418fced274e2fe9)
+- [2 AUSD withdrawal to MetaMask](https://monadvision.com/tx/0x59c82d048070619526dbc4ca5324ac8d9bc5dc5ddec386e33fd77e09fc05f580)
+- [1 AUSD Perpl collateral top-up from a passkey](https://monadvision.com/tx/0xfae339777cf123771b851dc3805316c653caf52ef41d5956266fea917603b77c)
 
 Demo: https://drive.google.com/drive/folders/1_Jvrra2rfWiGr4rMQQy6wHk05iv1pPw_?usp=sharing
 
@@ -189,7 +247,35 @@ sequenceDiagram
   API-->>Trader: Success and the destination hash
 ```
 
-**Bring Any-Chain Liquidity to Monad.** https://monblip.fun/fund uses Aurora Intents. A completed quote delivered about 101.59 MON onto Monad. The destination transaction is `0xbc3655c328f912cf97385d987c172ae95c2cce46dadc9fc9a9cb3978464a220c`. That MON is a play asset on the desk. The fund screen restores the quote, the success state, and the destination transaction.
+**Bring Any-Chain Liquidity to Monad.** https://monblip.fun/fund uses Aurora Intents. The trader picks the asset they hold, and Aurora delivers MON to the connected Monad wallet, including a passkey wallet. Five deposits have landed on Monad. That MON is a play asset on the desk: Deposit moves it into the house balance. The fund screen restores the quote, tracks the swap from sent to delivered or refunded, and shows the destination transaction. "Start a new deposit" opens the next quote.
+
+A deposit on https://monblip.fun/fund, step by step. The trader picks a token and an amount, and Aurora quotes the MON:
+
+![The /fund quote: 0.005 ETH from Ethereum to MON on Monad, with the refund address and the MetaMask deposit button](public/readme/aurora-fund-quote.png)
+
+Deposit opens MetaMask with the transfer filled in, here 0.005 SOL on Solana to Aurora's deposit address:
+
+![MetaMask transaction request for 0.005 SOL to the Aurora deposit address, quoted at 22.60 MON](public/readme/aurora-fund-metamask.png)
+
+After MetaMask sends it, the page tracks the swap until MON lands in the passkey wallet:
+
+![The /fund page tracking the swap: SOL sent, deposit seen by Aurora, about 22.60 MON on its way to Monad](public/readme/aurora-fund-tracking.png)
+
+Aurora deliveries on Monad:
+
+- [0.001 ETH became 101.59 MON in the MetaMask wallet](https://monadvision.com/tx/0xbc3655c328f912cf97385d987c172ae95c2cce46dadc9fc9a9cb3978464a220c)
+- [0.01 SOL became 43.60 MON in a passkey wallet](https://monadvision.com/tx/0x26adfb618aa38aed3b82dfc0dd2ca3635bed03ff38478c0c0c004f23486d50cb)
+- [0.01 SOL became 43.44 MON in a passkey wallet](https://monadvision.com/tx/0xd2d4b05f0d8aeb4ecb64fb64c8cdba9418ecedc00f9ab91485596a3037a75504)
+- [$0.52 of SOL became 21.85 MON in the MetaMask wallet](https://monadvision.com/tx/0x244f270d0e445e0b37a20da1385dcdc4d9e4ed7b4a1f99d0e60d3549dba87cc9)
+- [$0.52 of SOL became 21.60 MON in a second passkey wallet](https://monadvision.com/tx/0x7030ef2fd48ef1e006d10732ca94ab08b5c9f66f154d1caa322c9e9e97fc669a)
+
+The MonBlip key on the Aurora Intents portal shows the same five swaps, each a success, from SOL and ETH into MON on Monad:
+
+![Aurora Intents portal, MonBlip key with five successful swaps into MON](public/readme/aurora-key-swaps.png)
+
+The portal's user analytics for the key, with SOL and ETH as origins and MON on Monad as the only destination:
+
+![Aurora Intents user analytics for the MonBlip key](public/readme/aurora-user-analytics.png)
 
 Demo: https://drive.google.com/drive/folders/1RY03y8f1AtsP0YX_3Y3Q4BTI9CLzK4Le?usp=sharing
 
@@ -216,11 +302,29 @@ sequenceDiagram
 
 **Best Use of Envio.** Envio HyperSync is what fills the profile. For the connected wallet it reads AUSD transfers and native MON transfers against the Monad treasury and shows deposits, withdrawals and totals. The route is `/api/monad/funding`. The panel stays empty until that query returns. The data is the feature.
 
+The profile's "On-chain funding" panel for the test wallet, filled by HyperSync:
+
+![On-chain funding panel on the MonBlip profile, filled by Envio HyperSync](public/readme/envio-funding-panel.png)
+
+The same data from the live route, tagged `envio-hypersync`:
+
+![Live /api/monad/funding response with source envio-hypersync](public/readme/envio-hypersync-response.png)
+
+The MonBlip HyperSync token on the Envio dashboard, with 170 data requests on Monad in the last 24 hours:
+
+![Envio dashboard usage for the MonBlip HyperSync token](public/readme/envio-dashboard-usage.png)
+
+Live query for the test wallet: https://monblip.fun/api/monad/funding?address=0xF7249B507F1f89Eaea5d694cEf5cb96F245Bc5b6. It returns 10 deposits and 5 withdrawals, each with its transaction, for example:
+
+- [AUSD deposit row](https://monadvision.com/tx/0xa7a24041f6794b733b3b41b11d67dfad14a10bf2aa2d6189e37037bc8f2432a5), read from the AUSD Transfer log
+- [MON deposit row](https://monadvision.com/tx/0x9b269cba30ce21e422150d7d6da8f6d262e26e7dbcbe88b2d4b338fe815a4688), read from the native transfer
+- [MON withdrawal row](https://monadvision.com/tx/0x8c90ca3355966bcb05bc5d075e84955c6a3e8207e94f243adbb15755dd391f46), read from the treasury payout
+
 Demo: https://drive.google.com/drive/folders/1E2u1OwedGb_gU-Da8Y2DzZKURsjdUX7D?usp=sharing
 
 ### Chainlink CRE
 
-CRE closes the round. The workflow reads a public BTC price, reads AUSD decimals on Monad, and posts the close to the desk. A local simulation has completed. The workflow is not registered on the CRE network yet.
+CRE closes the round. The workflow reads a public BTC price, reads AUSD decimals on Monad, and posts the close to the desk. CRE CLI simulations have completed. The workflow is not registered on the CRE network yet.
 
 ```mermaid
 sequenceDiagram
@@ -237,11 +341,22 @@ sequenceDiagram
   Monad-->>CRE: 6 decimals
   CRE->>CRE: Compare the close with the strike
   CRE->>API: POST /api/monad/settle
-  API-->>Desk: Stored close
+  API->>API: Store the close in Supabase (cre_round_closes)
+  API-->>Desk: Latest close
   Desk-->>Desk: Trade screen shows the win or the loss
 ```
 
-**Best workflow with CRE.** Chainlink CRE is the orchestration layer for the close. The workflow reads a public BTC price, reads AUSD decimals on Monad mainnet, and posts the strike, the close, and the win or loss to https://monblip.fun/api/monad/settle. The trade screen shows that close. A local CRE CLI simulation completed with BTC at 83340, a strike of 100000, and a loss. The round settles in under 5 seconds against the public quote.
+**Best workflow with CRE.** Chainlink CRE is the orchestration layer for the close. The workflow reads a public BTC price, reads AUSD decimals on Monad mainnet, and posts the strike, the close, and the win or loss to https://monblip.fun/api/monad/settle. The route stores each close in Supabase, so every server shows the same latest close, and the trade screen shows it on the CRE line. A CRE CLI simulation completed with BTC at 83340, a strike of 100000, and a loss. The round settles in under 5 seconds against the public quote.
+
+Run the simulation from `cre/`. The single `.env` at the repo root holds `CRE_ETH_PRIVATE_KEY`.
+
+```bash
+cre workflow simulate round-close -e ../.env --target staging-settings --non-interactive --trigger-index 0 --http-payload payload.json --skip-type-checks --allow-unknown-chains
+```
+
+After the simulation passed, we asked Chainlink Labs for CRE deployment access. On 14 October Chainlink replied that CRE workflows can already be simulated locally, and that deploying on testnet or mainnet comes with commercial conditions. The workflow is ready to register once that access is in place.
+
+![Chainlink Labs reply to the CRE deployment access request](public/readme/chainlink-cre-email.png)
 
 Demo: https://drive.google.com/drive/folders/10yTXQu5zgfS-exvnEHIPNn_BE5zOj3xI?usp=sharing
 
@@ -269,13 +384,23 @@ sequenceDiagram
   Perpl-->>API: API key for later orders
 ```
 
-**Best Use of Dynamic.** Dynamic is the house hedge signer. The trader logs in with a Mera passkey or MetaMask. The hedge is a Dynamic MPC wallet. It signs Perpl's typed data on Monad and enrolls a trade-scoped Ed25519 key for the next orders. Perpl accepted the house order. The route is `/api/monad/perpl`. No raw hedge key sits in the app.
+**Best Use of Dynamic.** Dynamic is the house hedge signer. The trader logs in with a Mera passkey or MetaMask. The hedge is a Dynamic MPC server wallet, `0xdfE8C57CfC2900f74D3a513DBd075F5e6970fc00`, which owns Perpl account #5489. It signs Perpl's typed data on Monad and enrolls a trade-scoped Ed25519 key for the next orders. Perpl accepted a house order from that account, a 1 MON short. Every server signs as the same wallet, because its key-share metadata is kept in a hidden host variable. After each AUSD round, the Dynamic line on the trade board shows the signer, the signature, and Perpl's answer. When the house account has no free collateral, Perpl refuses the hedge and the board shows that reason. The route is `/api/monad/perpl`. No raw hedge key sits in the app.
+
+Transactions signed by the Dynamic hedge wallet:
+
+- [AUSD approval for Perpl](https://monadvision.com/tx/0xf46b33b90dbd36978bb6093d9b71541e19292baf2900bbe71f386a6e78b9a7f4)
+- [createAccount with 10 AUSD, Perpl account #5489](https://monadvision.com/tx/0x78aa18f8bca1a4e0a0c8308a7726e2b60ed10b346ecf366a935eafb9e4382445)
+- [10 AUSD collateral withdrawal from Perpl](https://monadvision.com/tx/0xe9145d0d48ae5bd74ac2c3550439dc068088ccdfbe2ffaad05283ee09a939142)
+- [11 AUSD transfer to the test wallet](https://monadvision.com/tx/0x5d5edfb97590d03d33b34021e0694b1f5bf21c02688fd033f3bcc82562a486c0)
+- [0.938 MON transfer to the test wallet](https://monadvision.com/tx/0x3a76012fc73229c17bbbeef187540ce64f8af16def86f0f320d6225e08cae79e)
+
+The wallet was funded with [11 AUSD](https://monadvision.com/tx/0x833eb49c80c22e17e50be125a5085ca2f815002d25983132b079681e35f6855a) and [1 MON for gas](https://monadvision.com/tx/0x6e6c217f98aa3d21e4594a50b80beb0eb77fb620fc6964273389e488711c9382).
 
 Demo: https://drive.google.com/drive/folders/1XLaaqPHH0E0TNF-RXmCNHkNmJUwu5VTi?usp=sharing
 
 ### Perpl
 
-Perpl is the offsetting MON perpetual. The trader can open an account from the Mera passkey. The house order is signed by Dynamic and sent only after Perpl accepts it.
+Perpl is the MON perpetual. The trader opens an account from the Mera passkey and places a 1 MON long. The house hedge is signed by Dynamic.
 
 ```mermaid
 sequenceDiagram
@@ -287,11 +412,21 @@ sequenceDiagram
   participant Dynamic
 
   alt Trader order
-    Trader->>App: Open account and place a MON order
+    Trader->>App: Place the 1 MON long
     App->>Mera: Sign the Perpl typed data
     Mera-->>App: Signature
-    App->>Perpl: Enroll the trade key and POST the order
-    Perpl-->>Trader: Accepted or refused
+    App->>Perpl: Enroll the trade key
+    opt First order
+      Mera->>Perpl: Approve AUSD and createAccount with 10 AUSD
+    end
+    opt Order forwarding is off
+      Mera->>Perpl: allowOrderForwarding
+    end
+    opt Free collateral below 0.25 AUSD
+      Mera->>Perpl: depositCollateral 1 AUSD
+    end
+    App->>Perpl: POST the order
+    Perpl-->>Trader: Fill and price, or the reason
   else House hedge
     House->>Dynamic: Sign and enroll
     Dynamic-->>House: Trade key
@@ -299,6 +434,35 @@ sequenceDiagram
     Perpl-->>House: Status code 0, submitted
   end
 ```
+
+The ticket at https://monblip.fun/perpl shows the passkey's AUSD and the free collateral, and links each on-chain step. The account card below it shows open positions and order history, and withdraws free collateral back to the passkey. A passkey listed in `PERPL_CLAIM_ADDRESSES` can claim the house account's collateral to itself through `POST /api/monad/perpl/claim` with a fresh signature. The Perpl routes run from the `bom1` region.
+
+The 1 MON long from passkey `0xbFD5…7e3F` on Perpl account #5506. Every step on the path is done, and the long is open:
+
+![The /perpl page with the Mera passkey signed in, Perpl account #5506 open, MON for gas, and the long open](public/readme/perpl-path.png)
+
+The order ticket next to the MON perpetual chart. The passkey approves the Perpl trade key. When the account has no free collateral, the ticket adds 1 AUSD from the passkey before the long:
+
+![The /perpl order ticket for a 1 MON market long at 1x, signed in with the Mera passkey](public/readme/perpl-ticket.png)
+
+The account card, read from Perpl. The open position is a 1 MON long at an entry of $0.024138. The history lists the settlement of that long, the collateral moves with their transactions, and a later long that Perpl refused with its reason:
+
+![Perpl account #5506 with the open 1 MON long, the collateral history and the order history](public/readme/perpl-account.png)
+
+Perpl settled the long on-chain in [this transaction](https://monadvision.com/tx/0x0dab02fae8852c4dc177d2a9fe2425f6d3da062033df4b3c43c6fd29f7d90916), one second after the passkey turned on order forwarding.
+
+Passkey transactions on the Perpl exchange (`0x34B6552d57a35a1D042CcAe1951BD1C370112a6F`):
+
+| Step | Account #5501 | Account #5506 |
+|---|---|---|
+| AUSD approval | [tx](https://monadvision.com/tx/0x4440a3834707294a5a0578422ac5eee18c5b6087734910015c6371d3cf7f7995) | [tx](https://monadvision.com/tx/0x6f17d2aaaa2634d25231b41df15f372339d97e52ba09e4e2ef1f24cc8fd16d0e) |
+| createAccount with 10 AUSD | [tx](https://monadvision.com/tx/0x2a16b5ee6f47e1ef06f84f773210964e4b0a2273b8f29b673b0e94952171a251) | [tx](https://monadvision.com/tx/0xa9442bbd41dcde97cbdb954746153195cbb760fa4fb1d579c919331d53692c30) |
+| allowOrderForwarding | [tx](https://monadvision.com/tx/0xc446e8c3abff8e54d894da3090178f1a5ed0489a2aa0c9fa03214425718be81d) | [tx](https://monadvision.com/tx/0xad92493d7ab4f6977e52550cd8c5c1b14e9ca75c12ae7929d881a1b48d4e8b2d) |
+| 1 MON long settled by Perpl | | [tx](https://monadvision.com/tx/0x0dab02fae8852c4dc177d2a9fe2425f6d3da062033df4b3c43c6fd29f7d90916) |
+| depositCollateral 1 AUSD | | [tx](https://monadvision.com/tx/0xfae339777cf123771b851dc3805316c653caf52ef41d5956266fea917603b77c) |
+| withdrawCollateral to the passkey | [10 AUSD](https://monadvision.com/tx/0x0083303659e60ebef2a8cc29a32944ce9accd4abf9378e01f722fd6b93ae4ce6) | [9.9758 AUSD](https://monadvision.com/tx/0xf9b6811491adf2a6ad1f6cf681f91a2b9b89d1d0de0e6d89dc5c461ace25ff87), [1 AUSD](https://monadvision.com/tx/0xda4118eb09db6c7ed5cb85b8f70adc8615f3621acc8d2bd8e3d2a19d0add2932) |
+
+The house account #5489 was opened by the Dynamic wallet in [this transaction](https://monadvision.com/tx/0x78aa18f8bca1a4e0a0c8308a7726e2b60ed10b346ecf366a935eafb9e4382445).
 
 ### Nansen
 
@@ -321,6 +485,18 @@ sequenceDiagram
 ```
 
 **Best use of Nansen.** After a round settles, the public board calls the Nansen labels API for that wallet. The label becomes the trading stance on the leaderboard and on the trade screen. A venue wallet and an unknown wallet read differently. The route is `/api/monad/nansen`. The board still lists results if the key is missing. The stance is the feature.
+
+The live board, with 65 settled Monad rounds from 3 traders. The line under each wallet is its Nansen stance. These are fresh test wallets, so Nansen has no label for them yet:
+
+![MonBlip leaderboard with settled Monad rounds and the Nansen stance under each wallet](public/readme/leaderboard.png)
+
+The Nansen dashboard shows the route's calls to `/api/v1/profiler/address/labels`, the same endpoint MonBlip uses, each one a success:
+
+![Nansen usage analytics with MonBlip's profiler label requests](public/readme/nansen-usage.png)
+
+The API runs on 10,000 purchased credits:
+
+![Nansen credit purchase history](public/readme/nansen-credits.png)
 
 Demo: https://drive.google.com/drive/folders/14CgTT_e6neN-ATLj65MPqjhP_x82j2PM?usp=sharing
 
@@ -471,6 +647,8 @@ Platform fees do not stay in the treasury. They move to the fee wallet.
 │  balance_audit_log      every debit and credit              │
 │  bet_history            settled rounds                      │
 │  user_sessions          time on the desk                    │
+│  sealed_slips           Mera slip ciphertext per address    │
+│  cre_round_closes       Chainlink CRE round closes          │
 └─────────────────────────────────────────────────────────────┘
          ▲
          │  balance RPCs and session pings
@@ -567,7 +745,8 @@ The server rejects a signature older than five minutes. A mainnet withdrawal can
 | Frontend | Wallets | Server | Tooling |
 |---|---|---|---|
 | Next.js 16, App Router, Turbopack | MetaMask and a Mera passkey on Monad, viem | Next.js route handlers on Vercel | ESLint 9 |
-| React 19 and TypeScript | | Supabase Postgres and RPCs | Jest and Testing Library |
+| React 19 and TypeScript | Dynamic Node SDK for the hedge signer | Supabase Postgres and RPCs | Jest and Testing Library |
+| Installable web app manifest | MetaMask Agent Wallet plugin (`plugins/mm-monblip`) | Aurora Intents, Envio HyperSync, Nansen, Perpl | Chainlink CRE workflow in `cre/` |
 | Tailwind CSS v4 | | Public quotes for the chart | Yarn v1 through Corepack, Node 22 |
 | Zustand | | viem for Monad treasury sends | Vercel Analytics and Speed Insights |
 | TanStack Query, Framer Motion, d3-shape | | PostHog | |
@@ -642,7 +821,7 @@ MonBlip does not match a trader against a hidden feed, and it does not turn a sh
 | Trader profiles | Highest P&L, most accurate, largest risk |
 | Tournaments | Optional scheduled boards |
 | Social trading | Follow, copy, and a public board |
-| Mobile | A layout that is comfortable on a phone |
+| Native mobile | A store app on top of the installable web app |
 
 The longer aim is a public binary board for stocks, FX, and crypto on Monad, with the price and the payout visible.
 
@@ -675,7 +854,7 @@ Ambassador notes, a weekly conversation with traders, Blitz windows with a state
 
 ### Phase 3
 
-P2P Classic, more assets, a mobile layout, and wallet entry through MetaMask or a Mera passkey.
+P2P Classic, more assets, and a native mobile app. Wallet entry through a Mera passkey or MetaMask is already live.
 
 | Mechanic | How it works |
 |---|---|
@@ -739,7 +918,7 @@ Demand and distribution are in [Go to market](#go-to-market). The desk, the trea
 
 One file: `.env`. Do not add `.env.local` or `.env.example`. Next.js would let `.env.local` override `.env`. Do not commit `.env`.
 
-`DASHBOARD_PASSWORD` must be quoted if the value contains `#`.
+`DASHBOARD_PASSWORD` must be quoted in `.env` if the value contains `#`. On the host, enter the same value without the quotes.
 
 | Use | Names |
 |---|---|
@@ -749,7 +928,16 @@ One file: `.env`. Do not add `.env.local` or `.env.example`. Next.js would let `
 | Database | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY` |
 | Settlement | `BALANCE_SETTLEMENT_SECRET`, `BALANCE_INTERNAL_SECRET` |
 | Admin | `DASHBOARD_PASSWORD` |
+| Aurora | `AURORA_INTENTS_API_KEY`, `AURORA_MONAD_AUSD_ASSET` |
+| Envio | `ENVIO_API_TOKEN` |
+| Nansen | `NANSEN_API_KEY` |
+| Dynamic | `DYNAMIC_ENVIRONMENT_ID`, `DYNAMIC_AUTH_TOKEN`, `DYNAMIC_WALLET_PASSWORD`, and on the host `DYNAMIC_HEDGE_WALLET` |
+| Perpl | `PERPL_CLAIM_ADDRESSES` |
+| Chainlink CRE | `CRE_WEBHOOK_SECRET`, and `CRE_ETH_PRIVATE_KEY` for the CLI |
+| Payout policy | `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_PAYOUT_WALLET_ID`, `PRIVY_AUTHORIZATION_KEY` |
 | Analytics | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` |
+
+Mera needs no key. Its passkeys are bound to the site's domain, so a passkey made on localhost is a different account from one made on monblip.fun. `docs/ENVIRONMENT.md` has the details.
 
 ---
 
@@ -763,9 +951,11 @@ Node 22. Yarn through Corepack.
 corepack yarn
 ```
 
+The `postinstall` step gives Mera its own `@noble/hashes` 2.2.0. Without it, Mera rejects every passkey key.
+
 2. Keep a single `.env`. Use the Monad treasury address in the table above. Put secret keys only in `.env`.
 
-3. Apply `supabase/migrations/` to the Supabase project. Balances, rounds, and referrals read those tables.
+3. Apply `supabase/migrations/` to the Supabase project, through `013_sealed_slips.sql`. Balances, rounds, referrals, CRE closes, and sealed slips read those tables.
 
 4. Fund the Monad treasury with AUSD and MON.
 
@@ -799,6 +989,16 @@ The local desk is http://localhost:3010. TypeScript errors block the build. The 
 | `POST` | `/api/bets/save` | Store a settled round |
 | `GET` | `/api/bets/history` | Recent rounds |
 | `GET` | `/api/bets/leaderboard` | Public board |
+| `GET`, `POST` | `/api/monad/aurora` | Aurora Intents quote and deposit address, and the swap status |
+| `GET` | `/api/monad/funding` | Envio HyperSync deposits and withdrawals for a wallet |
+| `GET` | `/api/monad/nansen` | Nansen label and trading stance |
+| `GET`, `POST` | `/api/monad/settle` | Latest Chainlink CRE close, and the CRE post |
+| `GET`, `POST` | `/api/monad/slip` | Sealed Mera slips, ciphertext only |
+| `GET`, `POST` | `/api/monad/perpl` | House Perpl account, and the Dynamic-signed hedge |
+| `POST` | `/api/monad/perpl/forward` | Perpl API proxy for the trader's signed requests |
+| `GET`, `POST` | `/api/monad/perpl/claim` | Whether a passkey may claim, and the claim of house collateral |
+| `POST` | `/api/monad/agent-fund` | Credit an Agent Wallet treasury transfer |
+| `POST` | `/api/monad/agent-round` | Stake a round signed by the Agent Wallet |
 
 Admin routes require the session from `DASHBOARD_PASSWORD`. The dashboard is `/dashboard`.
 
